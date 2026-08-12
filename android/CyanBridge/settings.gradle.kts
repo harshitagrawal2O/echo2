@@ -22,9 +22,16 @@ dependencyResolutionManagement {
         if (localPropsFile.exists()) {
             localProps.load(localPropsFile.inputStream())
         }
+        // Declared only for the meta variant. Keying this on token presence alone was the last
+        // place the old token-selects-the-variant assumption survived: CI sets GITHUB_TOKEN for
+        // unrelated reasons, so every CI run was declaring a Meta repository it could never
+        // authenticate against. Harmless while nothing resolves from it, but it is the same
+        // wrong coupling the -PmetaSupport flag exists to remove.
+        val metaSupportRequested =
+            startParameter.projectProperties["metaSupport"]?.toBoolean() == true
         val githubToken = System.getenv("GITHUB_TOKEN")
             ?: localProps.getProperty("github_token")
-        if (!githubToken.isNullOrBlank()) {
+        if (metaSupportRequested && !githubToken.isNullOrBlank()) {
             maven {
                 url = uri("https://maven.pkg.github.com/facebook/meta-wearables-dat-android")
                 credentials {

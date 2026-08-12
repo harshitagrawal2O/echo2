@@ -261,17 +261,19 @@ dependencies {
     testImplementation 'androidx.test:core:1.6.1'
     testImplementation "androidx.room:room-testing:$room_version"
 
-    // Meta Wearables DAT SDK for Meta Ray-Ban glasses integration.
-    // Requires GitHub token with read:packages scope in GITHUB_TOKEN env var.
+    // Meta Wearables DAT SDK for Meta Ray-Ban glasses integration. Pulled in only for the meta
+    // variant, which -PmetaSupport=true selects; resolving it additionally needs a GitHub token
+    // with read:packages on facebook/meta-wearables-dat-android, and asking for the variant
+    // without one is rejected at configure time above.
     def metaDatVersion = "0.8.0"
     if (metaDatEnabled) {
         implementation("com.meta.wearable:mwdat-core:${metaDatVersion}")
         implementation("com.meta.wearable:mwdat-camera:${metaDatVersion}")
         implementation("com.meta.wearable:mwdat-display:${metaDatVersion}")
         implementation("com.meta.wearable:mwdat-mockdevice:${metaDatVersion}")
-    } else {
-        logger.warn("No GitHub package token configured - Meta Wearables DAT SDK dependencies will be skipped.")
     }
+    // No warning on the else branch: skipping these is the default and expected path, not a
+    // misconfiguration. The configure-time lifecycle line already names the selected variant.
 
     // Chapter 4 UI gating test (androidTest)
     androidTestImplementation 'androidx.test:core-ktx:1.6.1'
