@@ -64,6 +64,10 @@ class VariantSourceSetParityTest {
          */
         val KNOWN_NOMETA_ONLY = emptySet<String>()
 
+        /** Set by `app/build.gradle`. See [sourceSetRoot] for why these are injected, not inferred. */
+        const val META_SOURCES_PROPERTY = "cyanbridge.metaSourceSet"
+        const val NOMETA_SOURCES_PROPERTY = "cyanbridge.nometaSourceSet"
+
         /**
          * Group 1 is the modifier run, which is why it is captured rather than skipped: `override`
          * is a modifier, and an anchored pattern that required the keyword first would not see
@@ -76,9 +80,8 @@ class VariantSourceSetParityTest {
 
     @Test
     fun `every member of a nometa twin exists on the meta side`() {
-        val moduleRoot = locateModuleRoot()
-        val metaRoot = File(moduleRoot, "src/meta/java")
-        val nometaRoot = File(moduleRoot, "src/nometa/java")
+        val metaRoot = sourceSetRoot(META_SOURCES_PROPERTY, "src/meta/java")
+        val nometaRoot = sourceSetRoot(NOMETA_SOURCES_PROPERTY, "src/nometa/java")
 
         check(metaRoot.isDirectory) { "missing source set: $metaRoot" }
         check(nometaRoot.isDirectory) { "missing source set: $nometaRoot" }
@@ -112,6 +115,9 @@ class VariantSourceSetParityTest {
                     appendLine()
                     problems.forEach { appendLine("  - $it") }
                     appendLine()
+                    appendLine("compared: $metaRoot")
+                    appendLine("      to: $nometaRoot")
+                    appendLine()
                     append(
                         "Every build here compiles src/nometa and none compiles src/meta, so this " +
                             "difference is invisible to the compiler. Add the member to the meta " +
@@ -144,17 +150,30 @@ class VariantSourceSetParityTest {
             .associateBy { it.relativeTo(root).invariantSeparatorsPath }
 
     /**
-     * The unit-test working directory is not contractual across Gradle versions and IDE runners, so
-     * the module is found by walking up rather than assumed.
+     * Resolves a source set, preferring the path Gradle injects over anything inferred from the
+     * process.
+     *
+     * The first version of this walked up from `user.dir`. That is the wrong instinct: the unit-test
+     * working directory is not contractual across Gradle versions, IDE runners, or the shape of the
+     * path the project is reached through — one of us builds through a directory junction onto a
+     * path containing a space, so a check that quietly depends on the process working directory
+     * passes on one machine and not the other for reasons having nothing to do with the code it is
+     * checking. `app/build.gradle` sets both properties from `projectDirectory`, which is exactly
+     * the value Gradle itself resolved, junction or not.
+     *
+     * There is deliberately **no fallback**. A walk-up kept as a backstop would quietly take over if
+     * the `build.gradle` wiring were ever removed, and the test would keep passing while no longer
+     * being the check anyone thinks it is — the same silent-degradation shape as the `UP-TO-DATE`
+     * problem this test already had once. One mechanism, and a loud failure if it is missing. The
+     * cost is that a bare JUnit run outside Gradle fails with instructions rather than working.
      */
-    private fun locateModuleRoot(): File {
-        var directory: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
-        while (directory != null) {
-            if (File(directory, "src/meta/java").isDirectory) return directory
-            val appModule = File(directory, "app")
-            if (File(appModule, "src/meta/java").isDirectory) return appModule
-            directory = directory.parentFile
+    private fun sourceSetRoot(property: String, relativePath: String): File {
+        val configured = System.getProperty(property)
+        check(!configured.isNullOrBlank()) {
+            "-D$property was not set, so $relativePath cannot be located. app/build.gradle sets it " +
+                "on every Test task; run this through Gradle (./gradlew :app:testDebugUnitTest) " +
+                "rather than as a bare JUnit run."
         }
-        error("could not locate the app module from ${System.getProperty("user.dir")}")
+        return File(configured)
     }
 }

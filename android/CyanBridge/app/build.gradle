@@ -184,13 +184,26 @@ android {
 // Without this it goes UP-TO-DATE and silently does not run when a twin changes — and worst on the
 // side it exists to protect, because the default variant does not compile src/meta at all, so
 // editing that twin invalidates nothing. A parity guard that skips itself is not a guard.
+// Both directories are also handed to the test explicitly rather than left to be inferred from the
+// process working directory. That directory is not contractual across Gradle versions and IDE
+// runners, and it varies with the shape of the path the project is reached through — a directory
+// junction onto a path containing a space, for instance. Resolving it here means the test uses the
+// value Gradle already resolved, so it cannot pass on one checkout and fail on another for reasons
+// unrelated to the sources it is comparing. Cost: an absolute path in the task's input fingerprint,
+// so a move or a fresh clone re-runs it. It reads two directories and takes under a second.
 tasks.withType(Test).configureEach {
-    inputs.dir("src/meta/java")
+    def metaSources = layout.projectDirectory.dir("src/meta/java").asFile
+    def nometaSources = layout.projectDirectory.dir("src/nometa/java").asFile
+
+    inputs.dir(metaSources)
             .withPathSensitivity(PathSensitivity.RELATIVE)
             .withPropertyName("metaVariantSources")
-    inputs.dir("src/nometa/java")
+    inputs.dir(nometaSources)
             .withPathSensitivity(PathSensitivity.RELATIVE)
             .withPropertyName("nometaVariantSources")
+
+    systemProperty "cyanbridge.metaSourceSet", metaSources.absolutePath
+    systemProperty "cyanbridge.nometaSourceSet", nometaSources.absolutePath
 }
 
 
