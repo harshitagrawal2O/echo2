@@ -1,4 +1,5 @@
 package com.fersaiyan.cyanbridge.devices
+import com.fersaiyan.cyanbridge.BuildConfig
 import com.fersaiyan.cyanbridge.shared.devices.DeviceProfile
 
 import android.content.Context
@@ -47,6 +48,23 @@ object DeviceProfileStore {
         val detected = p.getString(KEY_LAST_DETECTED_CLASS, null)?.let { safeClass(it) } ?: DeviceClass.UNKNOWN
         val selected = p.getString(KEY_LAST_SELECTED_CLASS, null)?.let { safeClass(it) } ?: detected
         val overridden = p.getBoolean(KEY_LAST_USER_OVERRIDDEN, false)
+
+        // A Ray-Ban profile written by a Meta build, read by a build without Meta support.
+        //
+        // Left alone, AutoPairManager sees selectedClass == META_RAYBAN, correctly refuses to hand
+        // the device to the vendor connector, and returns null — so the app silently stops
+        // auto-reconnecting to anything, explained only by a debug log. The user's symptom is "my
+        // glasses stopped connecting" with no signal anywhere in the UI.
+        //
+        // Dropped rather than downgraded, and the difference matters. Rewriting the class to
+        // UNKNOWN while keeping the MAC would let AutoPairManager's `profileMac` branch pass a
+        // Meta device's Bluetooth identity to the Oudmon connector — precisely what that code
+        // refuses to do. Returning null skips that branch, so reconnect falls through to the
+        // vendor SDK's own saved address and then the bonded-device heuristic, which matches only
+        // HeyCyan-style names and cannot pick a Ray-Ban back up.
+        if (selected == DeviceClass.META_RAYBAN && !BuildConfig.META_SUPPORT) {
+            return null
+        }
         return DeviceProfile(mac, name, detected, selected, overridden)
     }
 
