@@ -180,6 +180,19 @@ android {
     }
 }
 
+// VariantSourceSetParityTest reads src/meta and src/nometa as text, and Gradle cannot infer that.
+// Without this it goes UP-TO-DATE and silently does not run when a twin changes — and worst on the
+// side it exists to protect, because the default variant does not compile src/meta at all, so
+// editing that twin invalidates nothing. A parity guard that skips itself is not a guard.
+tasks.withType(Test).configureEach {
+    inputs.dir("src/meta/java")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .withPropertyName("metaVariantSources")
+    inputs.dir("src/nometa/java")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .withPropertyName("nometaVariantSources")
+}
+
 
 dependencies {
     def localLlamaRuntimeAarPath = (
