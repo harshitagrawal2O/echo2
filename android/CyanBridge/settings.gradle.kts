@@ -27,8 +27,17 @@ dependencyResolutionManagement {
         // unrelated reasons, so every CI run was declaring a Meta repository it could never
         // authenticate against. Harmless while nothing resolves from it, but it is the same
         // wrong coupling the -PmetaSupport flag exists to remove.
+        // startParameter.projectProperties, not project.hasProperty: this is a Settings script and
+        // has no project receiver. A project-style lookup here would not fail loudly — it would
+        // evaluate false, silently skip the repository, and surface much later as "could not find
+        // com.meta.wearable:mwdat-core", which reads like a Meta access problem rather than a
+        // settings-script bug. Logged because nobody without the grant can reach the code path
+        // that would otherwise reveal it.
         val metaSupportRequested =
             startParameter.projectProperties["metaSupport"]?.toBoolean() == true
+        if (metaSupportRequested) {
+            logger.lifecycle("settings: metaSupport=true, declaring the Meta Packages repository")
+        }
         val githubToken = System.getenv("GITHUB_TOKEN")
             ?: localProps.getProperty("github_token")
         if (metaSupportRequested && !githubToken.isNullOrBlank()) {
