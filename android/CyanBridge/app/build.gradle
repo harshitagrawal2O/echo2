@@ -103,6 +103,12 @@ android {
         buildConfigField "String", "WEB_SUB_ALLOWED_COUNTRIES", "\"${webAllowedCountries}\""
         buildConfigField "String", "DONATION_URL", "\"${donationUrl}\""
 
+        // Lets UI gate on the variant. Without this the Meta panel is gated only on which device
+        // profile the user picked, so a non-Meta build still renders the whole Ray-Ban panel with
+        // every control permanently dead — which is the "nonfunctional Meta UI" this split exists
+        // to avoid, just moved from compile time to runtime.
+        buildConfigField "boolean", "META_SUPPORT", "${metaDatEnabled}"
+
         vectorDrawables {
             useSupportLibrary = true
         }

@@ -5779,9 +5779,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         binding.layoutHeycyanExtras.visibility =
             if (model.isVisible(GlassesManagerGating.Action.HEY_CYAN_EXTRAS)) android.view.View.VISIBLE else android.view.View.GONE
 
-        // Meta Ray-Ban controls panel
+        // Meta Ray-Ban controls panel. Gated on the build variant as well as the selected device:
+        // without the DAT SDK every control in here is inert, and a panel that renders but cannot
+        // do anything is worse than one that is absent.
         binding.layoutMetaRayban.visibility =
-            if (model.isVisible(GlassesManagerGating.Action.META_RAYBAN_CONTROLS)) android.view.View.VISIBLE else android.view.View.GONE
+            if (BuildConfig.META_SUPPORT && model.isVisible(GlassesManagerGating.Action.META_RAYBAN_CONTROLS)) android.view.View.VISIBLE else android.view.View.GONE
 
         // Status placeholders
         val showBattery = model.isVisible(GlassesManagerGating.Action.STATUS_BATTERY)
@@ -5796,7 +5798,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 showHeyCyanControls = model.isVisible(GlassesManagerGating.Action.HEY_CYAN_EXTRAS),
                 showEyevueControls = model.isVisible(GlassesManagerGating.Action.EYEVUE_CONTROLS),
                 aiWakeWordRoute = AiWakeWordPreferences.route(this),
-                showMetaRaybanControls = model.isVisible(GlassesManagerGating.Action.META_RAYBAN_CONTROLS),
+                showMetaRaybanControls = BuildConfig.META_SUPPORT &&
+                    model.isVisible(GlassesManagerGating.Action.META_RAYBAN_CONTROLS),
                 showMeizuMyvuControls = model.isVisible(GlassesManagerGating.Action.MEIZU_MYVU_CONTROLS),
                 showBattery = showBattery,
                 showStorage = showStorage,
