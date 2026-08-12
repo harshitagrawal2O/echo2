@@ -28,6 +28,36 @@ silent rule, the gap detector, passive roll call, and the zero-interruption guar
 ./gradlew :app:testDebugUnitTest --tests "com.fersaiyan.cyanbridge.plugins.cue.*"
 ```
 
+### Windows: a space in the checkout path breaks the native build
+
+`:moonshine-voice` compiles native sources, and the CMake/NDK toolchain fails with `[CXX1406]` when
+any component of the path contains a space. A checkout under `C:\Users\you\Deep Station\...` will
+not build no matter how the toolchain is configured.
+
+The workaround is a directory junction from a space-free path, which needs no admin rights, costs no
+disk, and leaves the checkout where it is:
+
+```powershell
+New-Item -ItemType Junction -Path C:\echo -Target "C:\path with spaces\Alternative-HeyCyan-App-and-SDK"
+cd C:\echo\android\CyanBridge
+```
+
+**It works only because Gradle does not canonicalize the junction**, and that is worth stating
+because the workaround silently stops helping if it ever changes. Measured on Gradle 8.13:
+
+```
+shell cwd:   C:\echo\android\CyanBridge
+rootDir:     C:\echo\android\CyanBridge
+projectDir:  C:\echo\android\CyanBridge\app
+buildDir:    C:\echo\android\CyanBridge\app\build
+```
+
+The space-free path is what reaches the NDK. If Gradle resolved through to the real location, every
+path would carry the space again and `[CXX1406]` would come back unchanged.
+
+Measured by Amogh Shastry on the setup that has the junction. Not reproduced on a checkout whose
+path has no spaces, which is the only kind either maintainer currently has.
+
 ## Turning it on
 
 Plugins tab → **Cue** → enable (grants microphone and notification permission) → settings.
