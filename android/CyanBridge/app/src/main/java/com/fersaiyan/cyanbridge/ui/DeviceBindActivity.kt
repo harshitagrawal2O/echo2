@@ -1,5 +1,6 @@
 package com.fersaiyan.cyanbridge.ui
 
+import com.fersaiyan.cyanbridge.BuildConfig
 import com.fersaiyan.cyanbridge.shared.devices.DeviceProfile
 import com.fersaiyan.cyanbridge.shared.devices.ScannedDevice as SharedScannedDevice
 
@@ -133,6 +134,22 @@ class DeviceBindActivity : BaseActivity() {
         handler.removeCallbacks(scanTimeout)
         BleScannerHelper.getInstance().stopScan(this)
         isScanning = false
+
+        // Refuse a Ray-Ban selection this variant cannot serve, before anything is persisted.
+        //
+        // Placement matters: DeviceProfileStore.saveLastSelected runs a few lines below, so a
+        // guard sited with the Meta branch further down would still have written a profile the
+        // build cannot act on. The success path below also tells the user to "register it from
+        // the glasses dashboard" — a panel that does not exist without META_SUPPORT — so leaving
+        // this ungated would point them at UI that cannot be there.
+        if (selectedDeviceClass == DeviceClass.META_RAYBAN && !BuildConfig.META_SUPPORT) {
+            Toast.makeText(
+                this,
+                "This build does not include Meta Ray-Ban support. Choose another device.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
 
         AutoPairManager.setAutoReconnectSuppressed(false, reason = "user_manual_pair")
         device.userSelectedClass = selectedDeviceClass
