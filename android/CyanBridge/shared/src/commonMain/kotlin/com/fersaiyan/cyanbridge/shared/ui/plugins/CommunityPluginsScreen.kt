@@ -48,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -308,10 +310,14 @@ private fun NativePluginCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                // The title is a separate semantics node, so an unlabelled switch is announced as
+                // a bare "off, switch" — in a list of ten plugin cards a screen reader user has no
+                // way to tell which plugin they are about to turn on.
                 Switch(
                     checked = plugin.enabled,
                     onCheckedChange = onToggle,
                     enabled = plugin.isAvailable,
+                    modifier = Modifier.semantics { contentDescription = plugin.title },
                 )
                 if (plugin.hasSettings) {
                     IconButton(onClick = onOpenSettings) {

@@ -30,6 +30,9 @@ import com.fersaiyan.cyanbridge.shared.ui.plugins.CommunityPluginsScreen
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidService
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidSettingsActivity
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidPreferences
+import com.fersaiyan.cyanbridge.plugins.cue.CuePlugin
+import com.fersaiyan.cyanbridge.plugins.cue.CuePreferences
+import com.fersaiyan.cyanbridge.plugins.cue.CueSettingsActivity
 import com.fersaiyan.cyanbridge.plugins.meetingsparknotes.MeetingSparkNotesService
 import com.fersaiyan.cyanbridge.plugins.meetingsparknotes.MeetingSparkNotesSettingsActivity
 import com.fersaiyan.cyanbridge.plugins.meetingsparknotes.MeetingSparkNotesPreferences
@@ -125,6 +128,14 @@ class CommunityPluginsActivity : AppCompatActivity() {
                 isAvailable = hasCamera,
             ),
             NativePluginCardData(
+                id = NativePluginIds.CUE,
+                title = "Cue",
+                description = "Ambient situational awareness for blind and low vision users. Names who is speaking, flags the moment someone arrives or quietly walks away, and answers what you are looking at — mostly without words.",
+                badge = "Accessibility",
+                enabled = CuePreferences.isEnabled(this),
+                hasSettings = true,
+            ),
+            NativePluginCardData(
                 id = NativePluginIds.MEETING_SPARK_NOTES,
                 title = "Meeting Spark Notes",
                 description = "Turns live voice capture and chats into concise meeting summaries with action items.",
@@ -209,6 +220,7 @@ class CommunityPluginsActivity : AppCompatActivity() {
                         when (pluginId) {
                             NativePluginIds.LOCAL_AGENT -> startActivity(Intent(this, LocalAgentSettingsActivity::class.java))
                             NativePluginIds.WALKING_AID -> startActivity(Intent(this, WalkingAidSettingsActivity::class.java))
+                            NativePluginIds.CUE -> startActivity(Intent(this, CueSettingsActivity::class.java))
                             NativePluginIds.MEETING_SPARK_NOTES -> startActivity(Intent(this, MeetingSparkNotesSettingsActivity::class.java))
                             NativePluginIds.LIVE_CAPTION_RELAY -> startActivity(Intent(this, LiveCaptionRelaySettingsActivity::class.java))
                             NativePluginIds.HANDS_FREE_TRANSLATOR -> startActivity(Intent(this, HandsFreeTranslatorSettingsActivity::class.java))
@@ -339,6 +351,9 @@ class CommunityPluginsActivity : AppCompatActivity() {
             "walking_aid" -> {
                 WalkingAidPreferences.setEnabled(this, enabled)
                 if (enabled) WalkingAidService.start(this) else WalkingAidService.stop(this)
+            }
+            NativePluginIds.CUE -> {
+                CuePlugin.setEnabled(this, enabled)
             }
             "meeting_spark_notes" -> {
                 MeetingSparkNotesPreferences.setEnabled(this, enabled)
@@ -516,6 +531,7 @@ class CommunityPluginsActivity : AppCompatActivity() {
             "hands_free_translator",
             "errand_brain",
             NativePluginIds.AUTO_AUDIO,
+            NativePluginIds.CUE,
         )
 
         private val NOTIFICATION_PLUGIN_IDS = setOf(

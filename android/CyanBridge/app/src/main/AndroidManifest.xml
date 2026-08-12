@@ -314,6 +314,10 @@
             android:name=".plugins.visualdiary.VisualDiarySettingsActivity"
             android:exported="false"
             android:label="Visual Diary Settings" />
+        <activity
+            android:name=".plugins.cue.CueSettingsActivity"
+            android:exported="false"
+            android:label="Cue Settings" />
 
         <activity
             android:name=".bridge.runtimes.evenhub.EvenHubRuntimeActivity"
@@ -378,6 +382,12 @@
             android:name=".plugins.visualdiary.VisualDiaryService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Cue holds the live microphone and talks to the glasses over BLE for the whole session. -->
+        <service
+            android:name=".plugins.cue.CueService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|connectedDevice" />
 
         <receiver
             android:name=".plugins.errandbrain.ErrandBrainReminderReceiver"

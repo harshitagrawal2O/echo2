@@ -41,4 +41,5 @@ object NativePluginIds {
     const val AUTO_DIARY = "auto_diary"
     const val AUTO_AUDIO = "auto_audio"
     const val VISUAL_DIARY = "visual_diary"
+    const val CUE = "cue"
 }

@@ -174,4 +174,75 @@
     <string name="compose_plugin_name_live_caption_relay">Live Caption Relay</string>
     <string name="compose_plugin_name_handsfree_translator">Hands-Free Translator</string>
     <string name="compose_plugin_name_errand_brain">Errand Brain</string>
+
+    <!-- Cue: ambient situational awareness for blind and low vision users. -->
+    <string name="compose_plugin_name_cue">Cue</string>
+    <string name="compose_cue_description">Names who is speaking, tells you the moment someone arrives or quietly walks away, and answers what you are looking at. Mostly without words.</string>
+    <string name="compose_cue_stop">Stop</string>
+    <string name="compose_cue_status_stopped">Not listening</string>
+
+    <string name="compose_cue_enabled">Cue enabled</string>
+    <string name="compose_cue_enabled_hint">Starts listening when you put the glasses on and clears the roster when you take them off.</string>
+
+    <string name="compose_cue_quick_actions">Quick actions</string>
+    <string name="compose_cue_whos_here">Who is here</string>
+    <string name="compose_cue_whos_here_hint">Speaks the current roster. Same as pressing pause on the glasses.</string>
+    <string name="compose_cue_repeat_last">Repeat last</string>
+    <string name="compose_cue_repeat_last_hint">Replays what Cue said last. Same as the volume button on the glasses.</string>
+    <string name="compose_cue_bind_wearer">This next voice is me</string>
+    <string name="compose_cue_bind_wearer_hint">Say something after pressing this so Cue can tell your voice apart from everyone else\'s.</string>
+    <string name="compose_cue_bind_wearer_armed">Listening. Say a few words now.</string>
+
+    <string name="compose_cue_earcon_lesson">Sound vocabulary</string>
+    <string name="compose_cue_earcon_lesson_hint">Play each sound. They take about ten minutes to learn and then cost you almost no attention.</string>
+    <string name="compose_cue_earcon_person_entered">Someone arrived</string>
+    <string name="compose_cue_earcon_person_left">Someone left</string>
+    <string name="compose_cue_earcon_addressee_left">The person you were talking to left</string>
+    <string name="compose_cue_earcon_addressing_you">Someone is speaking to you</string>
+    <string name="compose_cue_earcon_awaiting_you">Someone is waiting for you</string>
+    <string name="compose_cue_earcon_ambient">Something happened nearby</string>
+    <string name="compose_cue_earcon_working">Cue is working on it</string>
+    <string name="compose_cue_earcon_failed">Cue could not do that</string>
+    <string name="compose_cue_earcon_busy">Glasses are busy</string>
+    <string name="compose_cue_earcon_glasses_lost">Cue lost the glasses</string>
+    <string name="compose_cue_play_sound">Play %1$s</string>
+
+    <string name="compose_cue_voice">Voice</string>
+    <string name="compose_cue_whisper_rate">Whisper speed: %1$s times</string>
+    <string name="compose_cue_briefing_rate">Briefing speed: %1$s times</string>
+    <string name="compose_cue_earcon_volume">Sound volume: %1$d percent</string>
+
+    <string name="compose_cue_listening">Listening</string>
+    <string name="compose_cue_mic_glasses">Glasses microphone</string>
+    <string name="compose_cue_mic_phone">Phone microphone</string>
+    <string name="compose_cue_mic_hint">Switch to the phone microphone if the people you are talking to come through faint or garbled. The glasses noise cancelling is tuned to isolate you, not them.</string>
+    <string name="compose_cue_gap_threshold">Silence before Cue speaks: %1$d milliseconds</string>
+    <string name="compose_cue_gap_measured">Measured: %1$d percent of pauses this session were long enough.</string>
+    <string name="compose_cue_gap_hint">Lower this if Cue rarely says anything. Raise it if Cue talks over people.</string>
+
+    <string name="compose_cue_timing">Timing</string>
+    <string name="compose_cue_addressee_silence">Departure alert after %1$d seconds of silence</string>
+    <string name="compose_cue_presence_timeout">Treat someone as gone after %1$d seconds</string>
+
+    <string name="compose_cue_ambient_enabled">Nearby sound alerts</string>
+    <string name="compose_cue_ambient_hint">A single tick for doors, knocks, applause and similar. Off by default because it is the fastest way to make Cue chatty.</string>
+
+    <string name="compose_cue_keys">Service keys</string>
+    <string name="compose_cue_anthropic_key">Anthropic API key</string>
+    <string name="compose_cue_transcription_key">Speech recognition API key</string>
+    <string name="compose_cue_keys_hint">Stored only on this phone. Without the speech key Cue still runs, using sounds and buttons but no names.</string>
+
+    <string name="compose_cue_rehearsal">Rehearsal mode</string>
+    <string name="compose_cue_rehearsal_hint">Replays a recorded conversation instead of listening. Everything else behaves exactly as it does live.</string>
+    <string name="compose_cue_rehearsal_script">Rehearsal script, as JSON</string>
+
+    <string name="compose_cue_status">Status</string>
+    <string name="compose_cue_status_running">Listening on %1$s. Speech recognition %2$s. %3$d people present.</string>
+    <string name="compose_cue_status_mic_glasses">the glasses microphone</string>
+    <string name="compose_cue_status_mic_phone">the phone microphone</string>
+    <string name="compose_cue_status_mic_none">no microphone</string>
+    <string name="compose_cue_status_stt_live">is live</string>
+    <string name="compose_cue_status_stt_rehearsal">is replaying a rehearsal</string>
+    <string name="compose_cue_status_stt_off">is unavailable</string>
+    <string name="compose_cue_status_counts">%1$d whispers spoken, %2$d dropped as stale, %3$d spoken over someone.</string>
 </resources>

@@ -86,6 +86,8 @@ import com.fersaiyan.cyanbridge.plugins.meetingsparknotes.MeetingSparkNotesServi
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidPreferences
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidImageCapture
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidService
+import com.fersaiyan.cyanbridge.plugins.cue.CuePlugin
+import com.fersaiyan.cyanbridge.plugins.cue.CueService
 // import com.fersaiyan.cyanbridge.ui.notes.NotesListActivity
 import com.fersaiyan.cyanbridge.ui.recordings.RecordingsListActivity
 import com.fersaiyan.cyanbridge.ui.BluetoothUtils
@@ -929,6 +931,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         if (CommunityPluginPrefs.isNativePluginEnabled(this, NativePluginIds.ERRAND_BRAIN)) {
             ErrandBrainService.start(this)
+        }
+        if (CuePlugin.isEnabled(this)) {
+            CueService.start(this)
         }
         if (com.fersaiyan.cyanbridge.localmodels.remote.RemoteOpenAiPrefs.isBridgeConfigured(this)) {
             (application as? MyApplication)?.startStudioBridge()
@@ -3514,6 +3519,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onBluetoothEvent(event: BluetoothEvent) {
         updateConnectionStatus(event.connect)
+        // Cue binds its session to the link: connecting starts it, and losing the link has to be
+        // audible, because silence is indistinguishable from an empty room.
+        if (event.connect) CuePlugin.onGlassesConnected(this) else CuePlugin.onGlassesDisconnected(this)
         if (event.connect) {
             otaManager.onBluetoothConnected()
             requestBatteryStatus(showToast = false)
@@ -9904,7 +9912,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Log.d("DeviceNotify", "Skipping general device-notify handling during OTA")
                 return
             }
-            when (response.loadData[6].toInt()) {
+            val notifyCode = response.loadData[6].toInt()
+            // Cue interprets events this dispatch already receives: the empty 0x0c pause handler,
+            // the 0x0e memory-low block, the 0x12 volume frame that only ever became a Toast, and
+            // the 0x02 photo-ready notify. It consumes them only while a session is live, so every
+            // existing path below is unchanged when the plugin is off.
+            if (CuePlugin.onDeviceNotify(this@MainActivity, notifyCode, response.loadData)) {
+                return
+            }
+            when (notifyCode) {
                 //Glasses battery report
                 0x05 -> {
                     //Current battery
