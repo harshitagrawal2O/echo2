@@ -77,7 +77,23 @@ The manager must collect registration state, device availability, device compati
 
 ### Android build and manifest configuration
 
-The Android app now treats the DAT dependencies as mandatory in `app/build.gradle`. A build fails early with a clear message when `GITHUB_TOKEN` or `github_token` is missing instead of compiling a nonfunctional Meta UI. A future non-Meta product variant would need a separate source set.
+Meta Ray-Ban support is an opt-in build variant, selected by `-PmetaSupport=true`. Without it the app builds and runs normally with Ray-Ban support absent; the target hardware is the HeyCyan CY-01, so a Meta SDK grant is not a precondition for compiling this repo.
+
+The variant is chosen by the source, not by the machine. That distinction is the lesson from how this used to work: the variant was inferred from whether the builder happened to hold a GitHub token, so two people on the same commit produced different APKs — different `minSdk`, different feature set — and neither could tell which from reading the source. Worse, that design could not distinguish *"doesn't want Meta"* from *"wants Meta but is misconfigured"*, and collapsed both into the same silent outcome: the dependencies were skipped while the code still imported them unconditionally, producing roughly 200 unresolved references rather than one sentence explaining the problem.
+
+Splitting those two cases is what the current design buys:
+
+| Invocation | Result |
+|---|---|
+| default | Non-Meta variant. Builds clean, no token needed, `minSdk` 24. |
+| `-PmetaSupport=true` with a usable token | Meta variant, `minSdk` 29. |
+| `-PmetaSupport=true` without one | Hard error naming the missing grant — the request cannot be honoured, so it fails rather than degrading. |
+
+The token now only decides whether the dependency can be *resolved*; it never decides which variant you get. `app/build.gradle` logs the selected variant at configure time so a token that silently fails to be picked up is visible immediately.
+
+Implementation: `src/meta/java` and `src/nometa/java` each define `MetaRaybanManager` and `MetaCameraPermission` with identical public surfaces, and exactly one is added to the source set. All Wearables DAT imports live in `src/meta`; nothing under `src/main` references the SDK. `MetaCameraPermission` narrows the permission handshake to `Unit -> Boolean` so the two screens that request camera access do not pull in the SDK's `Permission` and `PermissionStatus` types.
+
+**Maintenance obligation:** the two implementations must stay in step. A member added to one and not the other breaks whichever variant was not built, and the default build is the one most people run.
 
 The DAT metadata exists in `app/src/main/AndroidManifest.xml:77-86`, including `APPLICATION_ID`, `CLIENT_TOKEN`, and `DAM_ENABLED`. However:
 

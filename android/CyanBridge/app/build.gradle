@@ -24,8 +24,34 @@ def localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(new FileInputStream(localPropertiesFile))
 }
+// Meta Ray-Ban support is opt-in and selected by the source, not by the machine.
+//
+// It used to be inferred from whether the builder happened to have a GitHub token, which meant two
+// people on the same commit produced different APKs — different minSdk, different feature set — and
+// neither could tell which from reading the source. Worse, it could not distinguish "doesn't want
+// Meta" from "wants Meta but is misconfigured", so a missing token silently produced ~200
+// unresolved references instead of one sentence.
+//
+// Now: -PmetaSupport=true opts in, and the token only decides whether the dependency can be
+// resolved. Asking for Meta without a usable token is a hard error, because the request cannot be
+// honoured; not asking for it is the default and always builds.
+def metaSupportRequested = project.hasProperty("metaSupport") &&
+        project.property("metaSupport").toString().toBoolean()
 def metaGithubToken = System.getenv("GITHUB_TOKEN") ?: localProperties.getProperty("github_token")
-def metaDatEnabled = metaGithubToken != null && !metaGithubToken.trim().isEmpty()
+def metaTokenAvailable = metaGithubToken != null && !metaGithubToken.trim().isEmpty()
+
+if (metaSupportRequested && !metaTokenAvailable) {
+    throw new GradleException(
+            "-PmetaSupport=true needs a GitHub token with read:packages on " +
+            "facebook/meta-wearables-dat-android. Set GITHUB_TOKEN or github_token in " +
+            "local.properties, or drop -PmetaSupport to build without Meta Ray-Ban support."
+    )
+}
+
+def metaDatEnabled = metaSupportRequested
+logger.lifecycle(metaDatEnabled
+        ? "CyanBridge variant: Meta Ray-Ban support ENABLED (minSdk 29)"
+        : "CyanBridge variant: Meta Ray-Ban support disabled (minSdk 24). Use -PmetaSupport=true to enable.")
 
 android {
     namespace = "com.fersaiyan.cyanbridge"
@@ -131,6 +157,13 @@ android {
             java.exclude("com/myvu/client/ui/**")
             java.exclude("com/myvu/client/service/MyvuService.java")
             java.exclude("com/myvu/client/service/MirrorNotificationListener.java")
+
+            // Exactly one of these is compiled. Both define MetaRaybanManager and
+            // MetaCameraPermission with identical public surfaces; src/meta talks to the Wearables
+            // DAT SDK, src/nometa reports "unavailable" for everything. Keeping the two in step is
+            // a maintenance obligation — a member added to one and not the other breaks whichever
+            // variant was not built.
+            java.srcDir(metaDatEnabled ? "src/meta/java" : "src/nometa/java")
         }
     }
 

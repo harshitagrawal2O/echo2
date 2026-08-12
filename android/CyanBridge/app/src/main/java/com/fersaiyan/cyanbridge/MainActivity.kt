@@ -257,9 +257,7 @@ import com.fersaiyan.cyanbridge.ui.appearance.rememberAppearanceSettings
 import com.fersaiyan.cyanbridge.shared.ui.CyanBridgeApp
 import com.fersaiyan.cyanbridge.ui.theme.CyanBridgeTheme
 import android.content.ClipboardManager
-import com.meta.wearable.dat.core.Wearables
-import com.meta.wearable.dat.core.types.Permission
-import com.meta.wearable.dat.core.types.PermissionStatus
+import com.fersaiyan.cyanbridge.devices.metarayban.MetaCameraPermission
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
@@ -587,11 +585,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
     private val metaWearablePermissionLauncher =
-        registerForActivityResult(Wearables.RequestPermissionContract()) { result ->
+        registerForActivityResult(MetaCameraPermission.cameraContract()) { granted ->
             val action = pendingMetaCameraAction
             pendingMetaCameraAction = null
             enabledMetaCameraCheckActive = false
-            if (result.getOrDefault(PermissionStatus.Denied) == PermissionStatus.Granted) {
+            if (granted) {
                 action?.invoke()
             } else {
                 showMetaError("DAT camera permission", "Meta camera permission was denied")
@@ -1131,7 +1129,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 onGranted = action,
                 onRequestNeeded = {
                     pendingMetaCameraAction = action
-                    metaWearablePermissionLauncher.launch(Permission.CAMERA)
+                    metaWearablePermissionLauncher.launch(Unit)
                 },
                 onError = { error ->
                     showMetaError("DAT camera permission", error)

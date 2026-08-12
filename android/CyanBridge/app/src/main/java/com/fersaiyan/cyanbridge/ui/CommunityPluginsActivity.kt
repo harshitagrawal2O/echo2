@@ -15,9 +15,7 @@ import com.fersaiyan.cyanbridge.ai.router.AiProviderPrefs
 import com.fersaiyan.cyanbridge.devices.DeviceProfileStore
 import com.fersaiyan.cyanbridge.shared.devices.DeviceClass
 import com.fersaiyan.cyanbridge.devices.metarayban.MetaRaybanManager
-import com.meta.wearable.dat.core.Wearables
-import com.meta.wearable.dat.core.types.Permission
-import com.meta.wearable.dat.core.types.PermissionStatus
+import com.fersaiyan.cyanbridge.devices.metarayban.MetaCameraPermission
 import com.fersaiyan.cyanbridge.shared.chat.ChatRole
 import com.fersaiyan.cyanbridge.chat.ChatStore
 import com.fersaiyan.cyanbridge.shared.navigation.AppDestination
@@ -78,11 +76,11 @@ class CommunityPluginsActivity : AppCompatActivity() {
     private var pendingMetaCameraPlugin: String? = null
 
     private val metaWearablePermissionLauncher =
-        registerForActivityResult(Wearables.RequestPermissionContract()) { result ->
+        registerForActivityResult(MetaCameraPermission.cameraContract()) { granted ->
             val pluginId = pendingMetaCameraPlugin
             pendingMetaCameraPlugin = null
             if (pluginId == null) return@registerForActivityResult
-            if (result.getOrDefault(PermissionStatus.Denied) == PermissionStatus.Granted) {
+            if (granted) {
                 applyNativePluginToggle(pluginId, enabled = true)
             } else {
                 val manager = MetaRaybanManager.getInstance(this)
@@ -287,7 +285,7 @@ class CommunityPluginsActivity : AppCompatActivity() {
                     onGranted = { applyNativePluginToggle(pluginId, enabled = true) },
                     onRequestNeeded = {
                         pendingMetaCameraPlugin = pluginId
-                        metaWearablePermissionLauncher.launch(Permission.CAMERA)
+                        metaWearablePermissionLauncher.launch(Unit)
                     },
                     onError = { error ->
                         android.util.Log.e(

@@ -56,7 +56,12 @@ jobs:
 
       - name: Link the Apple-Silicon simulator framework
         working-directory: android/CyanBridge
-        run: ./gradlew --no-daemon -PenableAppleTargets=true :shared:linkDebugFrameworkIosSimulatorArm64
+        # -PmetaSupport=false is asserted rather than relied on as the default. A :shared task still
+        # configures :app, so before the variant became explicit this job was constructing the Meta
+        # configuration on every run — repo added, mwdat deps declared, minSdk 29 — against a
+        # github.token that can never carry read:packages for facebook/meta-wearables-dat-android.
+        # It was inert only because nothing here resolves or assembles :app.
+        run: ./gradlew --no-daemon -PenableAppleTargets=true -PmetaSupport=false :shared:linkDebugFrameworkIosSimulatorArm64
 
       - name: Build the device-only QCSDK demo
         run: >-
