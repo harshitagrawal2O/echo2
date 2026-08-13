@@ -8,7 +8,9 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -46,6 +48,15 @@ class AskFeedback private constructor(private val context: Context) {
                 instance ?: AskFeedback(context.applicationContext).also { instance = it }
             }
 
+        /**
+         * How long the [ToneGenerator] must stay open for one tone.
+         *
+         * At least the tone's own duration, because releasing the generator kills the tone in
+         * flight; longer when the caller wants a deliberate gap afterwards.
+         */
+        fun toneHoldMs(durationMs: Int, settleMs: Long): Long =
+            maxOf(durationMs.toLong(), settleMs)
+
         // Matches the pre-existing inline tones: same stream, same volume, same duration.
         const val TONE_VOLUME = 90
         const val TONE_DURATION_MS = 240
@@ -59,7 +70,16 @@ class AskFeedback private constructor(private val context: Context) {
         val FAILURE_BUZZ_PATTERN = longArrayOf(0, 90, 90, 90)
     }
 
-    @Volatile
+    /**
+     * Process-scoped, deliberately not supplied by the caller.
+     *
+     * A request outlives the activity that started it - the answer flow runs on its own IO scope -
+     * so a pulse tied to an activity's `lifecycleScope` would stop on a rotation or a screen
+     * blank while the request continued. Silence during a live ask is the exact state the pulse
+     * exists to deny.
+     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private var thinkingJob: Job? = null
 
     /** The microphone is open; matches the historical TONE_PROP_BEEP cue. */
@@ -74,7 +94,7 @@ class AskFeedback private constructor(private val context: Context) {
     }
 
     /** A photo has been taken and accepted. */
-    fun captured(scope: CoroutineScope) {
+    fun captured() {
         scope.launch { playTone(ToneGenerator.TONE_PROP_ACK) }
         tick()
     }
@@ -82,8 +102,13 @@ class AskFeedback private constructor(private val context: Context) {
     /**
      * The request is in flight. Pulses softly until [stopThinking]; starting twice is a no-op so
      * callers need not track whether a pulse is already running.
+     *
+     * Synchronised with [stopThinking] rather than relying on a volatile read: an unguarded
+     * check-then-act lets two callers both pass the guard, and the second assignment orphans the
+     * first job where [stopThinking] can never reach it - a pulse that runs forever.
      */
-    fun startThinking(scope: CoroutineScope) {
+    @Synchronized
+    fun startThinking() {
         if (thinkingJob?.isActive == true) return
         thinkingJob = scope.launch {
             Log.i(TAG, "Thinking pulse started")
@@ -107,13 +132,14 @@ class AskFeedback private constructor(private val context: Context) {
      * Any speech or terminal state ends the pulse. Safe to call redundantly, from any thread -
      * the common failure of feedback like this is a pulse that outlives the answer it promised.
      */
+    @Synchronized
     fun stopThinking() {
         thinkingJob?.cancel()
         thinkingJob = null
     }
 
     /** The ask failed. The falling NACK plus a double buzz; the caller speaks the reason. */
-    fun failure(scope: CoroutineScope) {
+    fun failure() {
         stopThinking()
         scope.launch { playTone(ToneGenerator.TONE_PROP_NACK) }
         vibrate(FAILURE_BUZZ_PATTERN)
@@ -132,7 +158,11 @@ class AskFeedback private constructor(private val context: Context) {
             }
         try {
             tone.startTone(toneType, durationMs)
-            if (settleMs > 0) delay(settleMs)
+            // startTone is asynchronous and release() tears down the native player, so the
+            // generator must outlive the tone. Holding for the settle gap alone was enough for
+            // the two listening cues (240 ms tone, 300 ms settle) and silently truncated the
+            // thinking pulse, which asks for no settle at all.
+            delay(toneHoldMs(durationMs, settleMs))
         } finally {
             tone.release()
         }

@@ -9,13 +9,19 @@ import android.view.accessibility.AccessibilityManager
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * One voice at a time.
+ * One voice per engine, plus arbitration against the screen reader.
  *
  * The app is partly self-voicing: AI answers arrive through its own text-to-speech, which is what
  * an eyes-free user without a screen reader needs. But when TalkBack is running there are two
  * voices sharing one ear, and everything the app narrates gets said twice. The vOICe handles the
  * same collision by reducing self-voicing whenever a screen reader is detected; this router is
  * that rule, in one place.
+ *
+ * What it cannot do is make the app speak with a single voice overall. `QUEUE_FLUSH` only flushes
+ * this router's own engine, and MainActivity's answer flow and Cue each own a separate
+ * [TextToSpeech] instance, so a tap-to-hear read and an arriving answer can still overlap. That
+ * collapses only when every speaker routes through here - which is blocked on the router being
+ * able to express Cue's SCO audio routing, not on anything in this file.
  *
  * - [speakContent] - the thing the user asked for (an AI answer, a history entry read aloud).
  *   Always self-voiced: screen readers do not spontaneously read new content, so there is no

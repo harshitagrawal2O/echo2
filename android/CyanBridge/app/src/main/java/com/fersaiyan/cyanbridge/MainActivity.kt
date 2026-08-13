@@ -4341,7 +4341,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             "[$sourceTag] Phone capture complete: ${result.file.absolutePath} " +
                                 "(${result.file.length()} bytes, ${result.durationMs} ms)",
                         )
-                        askFeedback.captured(lifecycleScope)
+                        askFeedback.captured()
                         onImageReadyForQuestion(
                             imagePath = result.file.absolutePath,
                             source = ImageQuestionSource.PHONE_CAMERA,
@@ -4369,7 +4369,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
      * silence is indistinguishable from one still thinking.
      */
     private fun speakAndToast(message: String) {
-        askFeedback.failure(lifecycleScope)
+        askFeedback.failure()
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         // State narration is arbitrated: with TalkBack running it becomes an accessibility
         // announcement so it is spoken once, in the user's configured voice; without it the
@@ -4645,7 +4645,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // The image is valid and the request is now in flight. Pulse until speech or cleanup:
         // 5-15 s of silence between asking and hearing an answer reads as a crash to a user who
         // cannot see the screen, and a second press would race the first request.
-        askFeedback.startThinking(lifecycleScope)
+        askFeedback.startThinking()
 
         val sourceLabel = if (source == ImageQuestionSource.FAST_PREVIEW) {
             "${pendingImageThumbnailQuality.label} BLE preview"
