@@ -222,6 +222,7 @@ import com.fersaiyan.cyanbridge.ai.image.ImageQuestionBroadcast
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSource
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSourcePolicy
 import com.fersaiyan.cyanbridge.ai.image.ImageThumbnailQuality
+import com.fersaiyan.cyanbridge.ai.image.PhoneCameraCapture
 import com.fersaiyan.cyanbridge.ai.AiQuestionForegroundService
 import com.fersaiyan.cyanbridge.ai.image.HighQualityFailureChoice
 import com.fersaiyan.cyanbridge.shared.glasses.GlassesAssistantMode
@@ -558,6 +559,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var eyevueUiJob: Job? = null
     private var eyevueWakeWordJob: Job? = null
     private val eyevueAiPhotoInProgress = AtomicBoolean(false)
+    private val phoneCameraCaptureInProgress = AtomicBoolean(false)
 
     private val metaAndroidPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -4179,7 +4181,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 })
             return
         }
-        pendingImageQuestionSource = source
+        // Falls back to the phone camera when the glasses cannot supply an image, so the question
+        // still gets answered. Also lets the whole path be exercised with no hardware paired.
+        pendingImageQuestionSource = ImageQuestionSourcePolicy.sourceForQuestion(
+            glassesConnected = BleOperateManager.getInstance().isConnected,
+            preferred = source,
+        )
         pendingImageThumbnailQuality = thumbnailQuality
         pendingImageCaptureStartedAtMs = System.currentTimeMillis()
         pendingImageQuestionOfferSpokenQuestion = offerSpokenQuestion
@@ -4288,7 +4295,71 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         when (pendingImageQuestionSource) {
             ImageQuestionSource.HIGH_QUALITY -> requestHighQualityImageForQuestion(sourceTag)
             ImageQuestionSource.FAST_PREVIEW -> requestImageThumbnailForQuestion(sourceTag)
+            ImageQuestionSource.PHONE_CAMERA -> capturePhoneCameraForQuestion(sourceTag)
         }
+    }
+
+    /**
+     * Answers an image question using the phone's own camera.
+     *
+     * Unlike the two glasses sources this takes no [GlassesSessionCoordinator] permit and does not
+     * consult [isGlassesCommandBlocked]: nothing here reaches the glasses, so blocking on their
+     * lease would stall a capture that cannot conflict with media sync or OTA. It also means this
+     * path works with no glasses paired at all.
+     */
+    private fun capturePhoneCameraForQuestion(sourceTag: String) {
+        if (!PhoneCameraCapture.hasPermission(this)) {
+            Log.w("AIHijack", "[$sourceTag] Phone camera permission not granted")
+            clearPendingVoiceImageQuestion(sourceTag)
+            finishAiQuestionForegroundWork()
+            speakAndToast("Camera permission is needed to answer questions about what you see.")
+            return
+        }
+        if (!phoneCameraCaptureInProgress.compareAndSet(false, true)) {
+            Log.i("AIHijack", "[$sourceTag] Phone camera capture already in progress")
+            return
+        }
+
+        Log.i("ImageQuestionTransfer", "[$sourceTag] Starting phone camera capture")
+        lifecycleScope.launch {
+            try {
+                when (val result = PhoneCameraCapture(this@MainActivity).capture(this@MainActivity)) {
+                    is PhoneCameraCapture.Result.Success -> {
+                        Log.i(
+                            "AIHijack",
+                            "[$sourceTag] Phone capture complete: ${result.file.absolutePath} " +
+                                "(${result.file.length()} bytes, ${result.durationMs} ms)",
+                        )
+                        onImageReadyForQuestion(
+                            imagePath = result.file.absolutePath,
+                            source = ImageQuestionSource.PHONE_CAMERA,
+                            transferDurationMs = result.durationMs,
+                        )
+                    }
+
+                    is PhoneCameraCapture.Result.Failure -> {
+                        Log.e("AIHijack", "[$sourceTag] Phone capture failed: ${result.reason}", result.cause)
+                        clearPendingVoiceImageQuestion(sourceTag)
+                        finishAiQuestionForegroundWork()
+                        speakAndToast(result.reason)
+                    }
+                }
+            } finally {
+                phoneCameraCaptureInProgress.set(false)
+            }
+        }
+    }
+
+    /**
+     * Reports a failure audibly as well as visually.
+     *
+     * A toast alone is invisible to the users this app exists for, and a capture that fails in
+     * silence is indistinguishable from one still thinking.
+     */
+    private fun speakAndToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        runCatching { speakVision(message) }
+            .onFailure { Log.w("AIHijack", "Could not speak failure message", it) }
     }
 
     private fun captureMetaImageForQuestion(sourceTag: String) {

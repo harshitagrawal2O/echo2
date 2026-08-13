@@ -20,6 +20,45 @@ class ImageQuestionContractsTest {
     }
 
     @Test
+    fun questionsFallBackToThePhoneCameraWhenTheGlassesCannotSupplyAnImage() {
+        // Both glasses sources need a live BLE link, so neither can answer without one.
+        assertEquals(
+            ImageQuestionSource.PHONE_CAMERA,
+            ImageQuestionSourcePolicy.sourceForQuestion(
+                glassesConnected = false,
+                preferred = ImageQuestionSource.FAST_PREVIEW,
+            ),
+        )
+        assertEquals(
+            ImageQuestionSource.PHONE_CAMERA,
+            ImageQuestionSourcePolicy.sourceForQuestion(
+                glassesConnected = false,
+                preferred = ImageQuestionSource.HIGH_QUALITY,
+            ),
+        )
+    }
+
+    @Test
+    fun connectedGlassesKeepTheRequestedSourceAndPhoneCameraIsNeverOverridden() {
+        assertEquals(
+            ImageQuestionSource.HIGH_QUALITY,
+            ImageQuestionSourcePolicy.sourceForQuestion(
+                glassesConnected = true,
+                preferred = ImageQuestionSource.HIGH_QUALITY,
+            ),
+        )
+        // An explicit phone request stays on the phone even with the glasses connected, so the
+        // choice is never silently upgraded back onto hardware the caller did not ask for.
+        assertEquals(
+            ImageQuestionSource.PHONE_CAMERA,
+            ImageQuestionSourcePolicy.sourceForQuestion(
+                glassesConnected = true,
+                preferred = ImageQuestionSource.PHONE_CAMERA,
+            ),
+        )
+    }
+
+    @Test
     fun officialBleThumbnailChoicesCoverTheVerifiedZeroToFiveRange() {
         assertEquals(
             listOf(0, 1, 2, 3, 4, 5),
