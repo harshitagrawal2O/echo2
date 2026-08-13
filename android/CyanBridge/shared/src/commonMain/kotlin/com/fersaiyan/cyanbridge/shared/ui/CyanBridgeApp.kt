@@ -39,6 +39,12 @@ import com.fersaiyan.cyanbridge.shared.ui.glasses.GlassesSyncFlowPickerDialog
  * Android can keep the legacy Activity presenters by leaving
  * [useSharedDestinations] disabled. The iOS KMP host enables it to render the
  * migrated shared destinations directly.
+ *
+ * Before flipping [useSharedDestinations] on for Android: the legacy Activity hosts carry
+ * accessibility opt-ins that the shared destinations do not wire up yet - ChatThreadActivity
+ * passes `onSpeakMessage` (tap a bubble to hear it) and SharedDestinationScreen does not. The
+ * flip would compile clean and silently drop them; thread those parameters through the shared
+ * destinations first.
  */
 @Composable
 fun CyanBridgeApp(
