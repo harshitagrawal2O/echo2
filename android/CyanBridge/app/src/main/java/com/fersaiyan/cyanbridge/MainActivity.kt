@@ -220,6 +220,7 @@ import com.fersaiyan.cyanbridge.ai.image.ExternalImageAutomationStore
 import com.fersaiyan.cyanbridge.ai.image.ImageAutomationTarget
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionBroadcast
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSource
+import com.fersaiyan.cyanbridge.ai.feedback.AskFeedback
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSourcePolicy
 import com.fersaiyan.cyanbridge.ai.image.ImageThumbnailQuality
 import com.fersaiyan.cyanbridge.ai.image.PhoneCameraCapture
@@ -338,6 +339,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         streamType: Int? = null,
         onDone: (() -> Unit)? = null,
     ) {
+        // Any speech ends the thinking pulse: a pulse under a voice promises work that speech
+        // is already delivering.
+        askFeedback.stopThinking()
         val engine = tts
         languageTag?.takeIf { it.isNotBlank() }?.let { tag ->
             val result = engine?.setLanguage(Locale.forLanguageTag(tag))
@@ -560,6 +564,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var eyevueWakeWordJob: Job? = null
     private val eyevueAiPhotoInProgress = AtomicBoolean(false)
     private val phoneCameraCaptureInProgress = AtomicBoolean(false)
+
+    /** The fixed earcon + haptic vocabulary for the ask loop; see [AskFeedback]. */
+    private val askFeedback by lazy { AskFeedback(this) }
 
     private val metaAndroidPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -4116,6 +4123,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun finishAiQuestionForegroundWork() {
+        // This runs on every terminal path of an ask, so no failure can leave a pulse promising
+        // an answer that is not coming.
+        askFeedback.stopThinking()
         AiQuestionForegroundService.stop(this)
     }
 
@@ -4330,6 +4340,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             "[$sourceTag] Phone capture complete: ${result.file.absolutePath} " +
                                 "(${result.file.length()} bytes, ${result.durationMs} ms)",
                         )
+                        askFeedback.captured(lifecycleScope)
                         onImageReadyForQuestion(
                             imagePath = result.file.absolutePath,
                             source = ImageQuestionSource.PHONE_CAMERA,
@@ -4357,6 +4368,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
      * silence is indistinguishable from one still thinking.
      */
     private fun speakAndToast(message: String) {
+        askFeedback.failure(lifecycleScope)
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         runCatching { speakVision(message) }
             .onFailure { Log.w("AIHijack", "Could not speak failure message", it) }
@@ -4626,6 +4638,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        // The image is valid and the request is now in flight. Pulse until speech or cleanup:
+        // 5-15 s of silence between asking and hearing an answer reads as a crash to a user who
+        // cannot see the screen, and a second press would race the first request.
+        askFeedback.startThinking(lifecycleScope)
+
         val sourceLabel = if (source == ImageQuestionSource.FAST_PREVIEW) {
             "${pendingImageThumbnailQuality.label} BLE preview"
         } else {
@@ -4879,7 +4896,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     )
 
                     lifecycleScope.launch {
-                        playImageQuestionTone(android.media.ToneGenerator.TONE_PROP_BEEP2)
+                        askFeedback.listeningClosed()
                         cleanup()
                         if (cont.isActive) {
                             cont.resume(cleaned)
@@ -4890,7 +4907,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 startBluetoothMicRoute(audioManager)
 
                 lifecycleScope.launch {
-                    playImageQuestionTone(android.media.ToneGenerator.TONE_PROP_BEEP)
+                    askFeedback.listeningOpened()
                     speakImageQuestionCue()
                     if (finished || !cont.isActive) return@launch
 
@@ -4951,21 +4968,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     finish(null)
                 }
             }
-        }
-    }
-
-    private suspend fun playImageQuestionTone(toneType: Int) {
-        val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_VOICE_CALL, 90)
-        try {
-            val played = tone.startTone(toneType, 240)
-            Log.i(
-                "ImageQuestionAudio",
-                "Image-question tone type=$toneType played=$played route=${audioRouteSummary(audioManager)}",
-            )
-            delay(300L)
-        } finally {
-            tone.release()
         }
     }
 
