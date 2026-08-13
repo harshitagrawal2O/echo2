@@ -221,6 +221,7 @@ import com.fersaiyan.cyanbridge.ai.image.ImageAutomationTarget
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionBroadcast
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSource
 import com.fersaiyan.cyanbridge.ai.feedback.AskFeedback
+import com.fersaiyan.cyanbridge.ai.feedback.SpeechRouter
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSourcePolicy
 import com.fersaiyan.cyanbridge.ai.image.ImageThumbnailQuality
 import com.fersaiyan.cyanbridge.ai.image.PhoneCameraCapture
@@ -566,7 +567,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private val phoneCameraCaptureInProgress = AtomicBoolean(false)
 
     /** The fixed earcon + haptic vocabulary for the ask loop; see [AskFeedback]. */
-    private val askFeedback by lazy { AskFeedback(this) }
+    private val askFeedback by lazy { AskFeedback.get(this) }
 
     private val metaAndroidPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -4370,7 +4371,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun speakAndToast(message: String) {
         askFeedback.failure(lifecycleScope)
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-        runCatching { speakVision(message) }
+        // State narration is arbitrated: with TalkBack running it becomes an accessibility
+        // announcement so it is spoken once, in the user's configured voice; without it the
+        // router self-voices, because a silent failure is indistinguishable from thinking.
+        runCatching { SpeechRouter.get(this).speakState(message) }
             .onFailure { Log.w("AIHijack", "Could not speak failure message", it) }
     }
 

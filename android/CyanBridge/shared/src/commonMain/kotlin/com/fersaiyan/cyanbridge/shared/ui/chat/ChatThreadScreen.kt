@@ -1,6 +1,7 @@
 package com.fersaiyan.cyanbridge.shared.ui.chat
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -113,6 +114,7 @@ fun ChatThreadScreen(
     onRecordAudio: () -> Unit,
     onClearAttachments: () -> Unit,
     onDestinationSelected: (AppDestination) -> Unit,
+    onSpeakMessage: ((String) -> Unit)? = null,
 ) {
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
@@ -186,6 +188,7 @@ fun ChatThreadScreen(
                 assistantBubbleColor = assistantBubbleColor,
                 isThinking = isThinking,
                 modifier = Modifier.weight(1f),
+                onSpeakMessage = onSpeakMessage,
             )
         }
     }
@@ -255,6 +258,7 @@ private fun ChatTimeline(
     assistantBubbleColor: Int?,
     isThinking: Boolean,
     modifier: Modifier = Modifier,
+    onSpeakMessage: ((String) -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     var isNearBottom by remember { mutableStateOf(true) }
@@ -306,6 +310,7 @@ private fun ChatTimeline(
                         message = message,
                         userBubbleColor = userBubbleColor,
                         assistantBubbleColor = assistantBubbleColor,
+                        onActivated = onSpeakMessage,
                     )
                 }
                 if (isThinking) {
@@ -347,6 +352,7 @@ private fun ChatMessageBubble(
     message: ChatMessage,
     userBubbleColor: Int?,
     assistantBubbleColor: Int?,
+    onActivated: ((String) -> Unit)? = null,
 ) {
     val isUser = message.role == ChatRole.USER
     val background = when {
@@ -368,8 +374,18 @@ private fun ChatMessageBubble(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
         ) {
+            // Tapping a bubble reads it aloud through the app's own voice, so history is
+            // hearable without a screen reader running. The label makes TalkBack describe the
+            // action ("speak this message") rather than announcing a nameless double-tap.
+            val activationModifier = if (onActivated != null) {
+                Modifier.clickable(onClickLabel = "speak this message") {
+                    onActivated(message.content)
+                }
+            } else {
+                Modifier
+            }
             Surface(
-                modifier = Modifier.widthIn(max = maxBubbleWidth),
+                modifier = Modifier.widthIn(max = maxBubbleWidth).then(activationModifier),
                 color = background,
                 contentColor = contentColor,
                 shape = shape,

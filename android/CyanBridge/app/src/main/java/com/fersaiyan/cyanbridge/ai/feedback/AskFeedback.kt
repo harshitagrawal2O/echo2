@@ -28,10 +28,23 @@ import kotlinx.coroutines.launch
  * Tone constants for the two listening cues are unchanged from the previous inline calls, so the
  * sounds users may already know keep their meaning; this class gives them names and siblings.
  */
-class AskFeedback(private val context: Context) {
+class AskFeedback private constructor(private val context: Context) {
 
-    private companion object {
-        const val TAG = "AskFeedback"
+    companion object {
+        private const val TAG = "AskFeedback"
+
+        @Volatile
+        private var instance: AskFeedback? = null
+
+        /**
+         * Process singleton: the thinking pulse is process-wide state, and components that
+         * produce audio outside MainActivity's speech path (Cue's dispatcher, foreground
+         * services) must be able to stop it without an activity to call into.
+         */
+        fun get(context: Context): AskFeedback =
+            instance ?: synchronized(this) {
+                instance ?: AskFeedback(context.applicationContext).also { instance = it }
+            }
 
         // Matches the pre-existing inline tones: same stream, same volume, same duration.
         const val TONE_VOLUME = 90
