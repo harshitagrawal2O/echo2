@@ -47,7 +47,7 @@ class WalkingAidImageCapture(context: Context) {
         }
 
         check(BleOperateManager.getInstance().isConnected) { "Glasses are not connected" }
-        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand()
+        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand("Walking Aid image capture")
             ?: throw IllegalStateException("Glasses are busy with another operation")
         val outputFile = File(
             context.getExternalFilesDir("DCIM") ?: context.filesDir,

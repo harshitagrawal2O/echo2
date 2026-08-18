@@ -339,7 +339,7 @@ class AutoAudioCaptureService : Service() {
     )
 
     private suspend fun sendAudioCommandAwait(start: Boolean): AudioCmdAck {
-        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand()
+        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand("auto audio capture")
         if (permit == null) {
             val activeSession = GlassesSessionCoordinator.currentSession()
             val owner = activeSession?.label ?: "another glasses command"

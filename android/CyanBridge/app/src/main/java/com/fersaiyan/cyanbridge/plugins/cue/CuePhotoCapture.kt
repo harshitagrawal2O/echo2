@@ -44,7 +44,7 @@ class CuePhotoCapture(context: Context) {
      */
     suspend fun receiveThumbnail(namePrefix: String = "cue"): CapturedThumbnail {
         check(BleOperateManager.getInstance().isConnected) { "Glasses are not connected" }
-        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand()
+        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand("Cue photo capture")
             ?: throw GlassesBusyException()
         return try {
             val outputFile = newOutputFile(namePrefix)
@@ -63,7 +63,7 @@ class CuePhotoCapture(context: Context) {
      */
     suspend fun captureFresh(qualityLevel: Int, namePrefix: String = "cue"): CapturedThumbnail {
         check(BleOperateManager.getInstance().isConnected) { "Glasses are not connected" }
-        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand()
+        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand("Cue photo capture")
             ?: throw GlassesBusyException()
         val outputFile = newOutputFile(namePrefix)
         return try {

@@ -210,7 +210,7 @@ object AutoLoopVisualNoteGenerator {
     }
 
     private suspend fun captureThumbnail(context: Context, loopIndex: Int): File? {
-        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand()
+        val permit = GlassesSessionCoordinator.tryAcquireBackgroundCommand("auto loop visual note")
         if (permit == null) {
             Log.i(TAG, "Skipping thumbnail capture because the glasses SDK is busy")
             return null
