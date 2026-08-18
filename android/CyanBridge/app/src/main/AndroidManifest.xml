@@ -308,6 +308,16 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice|dataSync|microphone" />
 
+        <!--
+            Holds the process up while the glasses are connected. The notify listener is registered
+            process-globally and never unregistered, so it outlives the activity - but not the
+            process, which aggressive ROMs kill the moment the user switches apps.
+        -->
+        <service
+            android:name=".glasses.GlassesPresenceService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
         <service
             android:name=".localagent.accessibility.LocalAgentAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
