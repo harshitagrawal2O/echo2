@@ -14,6 +14,13 @@
 
     <!-- Meeting capture (microphone) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!--
+        AskFeedback pairs every earcon with a haptic so turn state is felt as well as heard, which
+        matters most for the users this app is for. Without this the haptic half threw
+        SecurityException on every tick and only ever appeared as "Vibration failed" in logcat.
+        Normal permission: granted at install, no runtime prompt.
+    -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
@@ -247,47 +254,6 @@
             android:exported="false"
             android:label="Synced photos and videos" />
 
-        <!-- Pro subscription configuration activities -->
-        <activity
-            android:name=".agent.ProSubscriptionActivity"
-            android:exported="true"
-            android:label="Pro Subscription">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:scheme="fersaiyan"
-                    android:host="pro-sub"
-                    android:path="/restore" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".agent.WebSubscriptionCallbackActivity"
-            android:exported="true"
-            android:label="Subscription Callback"
-            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
-            <!-- The relay must publish assetlinks.json for this HTTPS App Link. -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:scheme="https"
-                    android:host="cyanbridge.vercel.app"
-                    android:path="/web-subscribe/callback" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".agent.ProSubscriptionSettingsActivity"
-            android:exported="false"
-            android:label="Pro Subscription Settings" />
         <activity
             android:name=".ai.live.GeminiLiveActivity"
             android:exported="false"
