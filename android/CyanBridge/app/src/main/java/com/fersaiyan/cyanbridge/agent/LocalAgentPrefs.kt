@@ -30,8 +30,12 @@ object LocalAgentPrefs {
             "API_MODELS" -> AgentProviderType.PRO_SUBSCRIPTION
             AgentProviderType.PRO_SUBSCRIPTION.name -> AgentProviderType.PRO_SUBSCRIPTION
             AgentProviderType.TASKER.name -> AgentProviderType.TASKER
-            null, "" -> AgentProviderType.TASKER
-            else -> AgentProviderType.TASKER
+            // Default to the in-app path. TASKER routes the glasses through Tasker + AutoInput
+            // driving Gemini's or ChatGPT's UI, so defaulting there means a fresh install asks the
+            // user to install two third-party automation apps before the AI button can do anything
+            // - while the app's own vision path needs none of them.
+            null, "" -> AgentProviderType.LOCAL_AGENT
+            else -> AgentProviderType.LOCAL_AGENT
         }
     }
 
@@ -55,11 +59,14 @@ object LocalAgentPrefs {
             GlassesAssistantMode.PHONE_ASSISTANT.name,
             "GEMINI",
             "CHAT_GPT",
-            "PHONE_DEFAULT",
-            null,
-            "" -> GlassesAssistantMode.PHONE_ASSISTANT
+            "PHONE_DEFAULT" -> GlassesAssistantMode.PHONE_ASSISTANT
 
-            else -> GlassesAssistantMode.PHONE_ASSISTANT
+            // PHONE_ASSISTANT hands the turn to the phone's default assistant, which this app can
+            // only reach by puppeteering its UI. Defaulting there is why a fresh install prompts
+            // for Tasker. The app answers questions itself, so that is the default.
+            null, "" -> GlassesAssistantMode.CUSTOM_AI_PROVIDER
+
+            else -> GlassesAssistantMode.CUSTOM_AI_PROVIDER
         }
         if (stored != mode.name) {
             preferences.edit().putString(KEY_GLASSES_ASSISTANT_MODE, mode.name).apply()

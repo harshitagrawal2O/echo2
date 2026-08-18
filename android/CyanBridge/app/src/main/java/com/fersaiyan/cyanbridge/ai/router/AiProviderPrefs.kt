@@ -34,8 +34,22 @@ object AiProviderPrefs {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun getProvider(context: Context): AiProviderType =
-        AiProviderType.fromWire(prefs(context).getString(KEY_PROVIDER, AiProviderType.CLI_RELAY.wire))
+    /**
+     * Local Models is the only provider that can actually serve a request.
+     *
+     * MOCK and COMPANY_BACKEND are stubs. CLI_RELAY points at the upstream relay, which shells out
+     * to the `gemini`/`codex` CLIs from a Termux server - there are no CLI binaries and no OAuth
+     * state on the deployed serverless host, so it cannot answer. It used to be the default, and
+     * the only code that ever moved a user off it was the Pro activation flow. With monetisation
+     * removed nothing sets this pref at all, so the default has to be the provider that works, and
+     * a device still carrying the old stored value has to be migrated off it rather than stranded.
+     */
+    fun getProvider(context: Context): AiProviderType {
+        val stored = AiProviderType.fromWire(
+            prefs(context).getString(KEY_PROVIDER, AiProviderType.LOCAL_MODELS.wire),
+        )
+        return if (stored == AiProviderType.CLI_RELAY) AiProviderType.LOCAL_MODELS else stored
+    }
 
     fun setProvider(context: Context, provider: AiProviderType) {
         prefs(context).edit().putString(KEY_PROVIDER, provider.wire).apply()
