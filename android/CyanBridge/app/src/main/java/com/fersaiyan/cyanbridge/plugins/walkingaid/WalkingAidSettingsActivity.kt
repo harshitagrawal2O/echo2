@@ -7,7 +7,6 @@ import android.os.SystemClock
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.CircularProgressIndicator
-import com.fersaiyan.cyanbridge.agent.ProSubscriptionActivity
 import com.fersaiyan.cyanbridge.plugins.walkingaid.vision.LiteRtVisionBackend
 import com.fersaiyan.cyanbridge.plugins.walkingaid.vision.VisionFrame
 import kotlinx.coroutines.CoroutineScope
@@ -1145,20 +1144,8 @@ fun WalkingAidSettingsScreen(
                 }
             },
             dismissButton = {
-                if (readiness.requiresProForCloud) {
-                    TextButton(
-                        onClick = {
-                            showReadinessResult = null
-                            val intent = Intent(context, ProSubscriptionActivity::class.java)
-                            context.startActivity(intent)
-                        }
-                    ) {
-                        Text(stringResource(R.string.compose_walking_upgrade_pro))
-                    }
-                } else {
-                    TextButton(onClick = { showReadinessResult = null }) {
-                        Text(stringResource(R.string.compose_walking_cancel))
-                    }
+                TextButton(onClick = { showReadinessResult = null }) {
+                    Text(stringResource(R.string.compose_walking_cancel))
                 }
             }
         )

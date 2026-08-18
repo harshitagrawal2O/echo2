@@ -100,7 +100,7 @@ object WalkingAidReadinessChecker {
             yoloReady = yoloReady,
             depthReady = depthReady,
             llmReady = llmReady,
-            requiresProForCloud = requiresPro,
+            requiresProForCloud = false,
             missingDetails = details,
         )
     }

@@ -165,13 +165,6 @@ fun SettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                ProSubscriptionCard(
-                    isSubscribed = state.isProSubscribed,
-                    proPlan = state.proPlan,
-                    onClick = actions::openSubscription,
-                )
-            }
             if (state.meetingRecording) {
                 item {
                     MeetingRecordingBanner(
@@ -294,108 +287,6 @@ private fun MeetingRecordingBanner(
                 )
             }
             TextButton(onClick = onStop) { Text(stringResource(Res.string.action_stop)) }
-        }
-    }
-}
-
-@Composable
-private fun ProSubscriptionCard(
-    isSubscribed: Boolean,
-    proPlan: String,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("settings_subscription")
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Surface(
-                    modifier = Modifier.size(40.dp),
-                    color = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary,
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AutoAwesome,
-                        contentDescription = null,
-                        modifier = Modifier.padding(8.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (isSubscribed) {
-                                    Res.string.settings_pro_subscription_settings
-                                } else {
-                                    Res.string.settings_pro_subscription
-                                },
-                            ),
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiary,
-                            contentColor = MaterialTheme.colorScheme.onTertiary,
-                            shape = MaterialTheme.shapes.small,
-                        ) {
-                            Text(
-                                text = stringResource(
-                                    if (isSubscribed) Res.string.settings_pro_active else Res.string.settings_pro_badge,
-                                ),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    }
-                    Text(
-                        text = if (isSubscribed) {
-                            stringResource(Res.string.settings_current_plan, proPlan)
-                        } else {
-                            stringResource(Res.string.settings_unlock_premium)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
-                }
-            }
-            Button(
-                onClick = onClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary,
-                ),
-            ) {
-                Text(
-                    stringResource(
-                        if (isSubscribed) Res.string.settings_manage_subscription else Res.string.settings_view_plans,
-                    ),
-                )
-            }
         }
     }
 }
@@ -557,8 +448,7 @@ private fun MemoryPrivacyContent(state: SettingsUiState, actions: SettingsScreen
         )
     }
     MemoryPrivacyMode.entries.forEach { mode ->
-        val requiresPro = mode != MemoryPrivacyMode.PRIVATE_LOCAL
-        val enabled = state.isProSubscribed || !requiresPro
+        val enabled = true
         Row(
             modifier = Modifier
                 .fillMaxWidth()
