@@ -6,6 +6,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.util.Log
 import com.fersaiyan.cyanbridge.agent.LocalAgentPrefs
+import com.fersaiyan.cyanbridge.ai.vision.SpeechRecognitionPrefs
 import com.fersaiyan.cyanbridge.localmodels.remote.RemoteOpenAiPrefs
 import com.fersaiyan.cyanbridge.shared.glasses.GlassesAssistantMode
 import com.fersaiyan.cyanbridge.shared.settings.AgentProviderType
@@ -87,6 +88,11 @@ class DevConfigInitializer : ContentProvider() {
                 .onFailure { Log.e(TAG, "Unknown agent_provider '$raw'") }
         }
 
+        json.optString("recognition_language").takeIf { it.isNotBlank() }?.let {
+            SpeechRecognitionPrefs.setLanguageTag(context, it)
+            applied += "recognition_language=" + it
+        }
+
         // Delete before reporting success: a config that was applied but left on disk is a
         // plaintext credential sitting where anything with storage access can read it.
         val deleted = file.delete()
@@ -98,6 +104,7 @@ class DevConfigInitializer : ContentProvider() {
                 "remoteEnabled=${RemoteOpenAiPrefs.isEnabled(context)} " +
                 "assistantMode=${LocalAgentPrefs.getGlassesAssistantMode(context)} " +
                 "agentProvider=${LocalAgentPrefs.getProviderType(context)} " +
+                "recognitionLanguage=${SpeechRecognitionPrefs.getLanguageTag(context)} " +
                 "configFileDeleted=$deleted",
         )
         if (!deleted) {
