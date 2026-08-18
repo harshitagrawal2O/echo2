@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+
+        <!--
+            Debug-only provisioning for remote inference settings. Not exported: the system
+            instantiates providers during application startup, which is the only reason this
+            exists, so nothing outside the app ever needs to reach it. This manifest is merged
+            into debug builds only and never into release.
+        -->
+        <provider
+            android:name=".devconfig.DevConfigInitializer"
+            android:authorities="${applicationId}.devconfig"
+            android:enabled="true"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
