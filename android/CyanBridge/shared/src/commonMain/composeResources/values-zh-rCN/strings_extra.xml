@@ -411,7 +411,7 @@
     <string name="dashboard_recording_active">录音进行中</string>
     <string name="dashboard_glasses_status">眼镜状态</string>
     <string name="dashboard_class">类别：%1$s</string>
-    <string name="dashboard_battery">电量：%1$d%%</string>
+    <string name="dashboard_battery">电量：%1$d%</string>
     <string name="dashboard_battery_unknown">电量：--%</string>
     <string name="dashboard_storage">存储空间：%1$s</string>
     <string name="dashboard_sync_progress">同步进度</string>

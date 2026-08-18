@@ -416,7 +416,7 @@
     <string name="dashboard_recording_active">Recording active</string>
     <string name="dashboard_glasses_status">Glasses status</string>
     <string name="dashboard_class">Class: %1$s</string>
-    <string name="dashboard_battery">Battery: %1$d%%</string>
+    <string name="dashboard_battery">Battery: %1$d%</string>
     <string name="dashboard_battery_unknown">Battery: --%</string>
     <string name="dashboard_storage">Storage: %1$s</string>
     <string name="dashboard_sync_progress">Sync progress</string>

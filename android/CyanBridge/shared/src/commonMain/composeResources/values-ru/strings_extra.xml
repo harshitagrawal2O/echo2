@@ -411,7 +411,7 @@
     <string name="dashboard_recording_active">Запись активна</string>
     <string name="dashboard_glasses_status">Состояние очков</string>
     <string name="dashboard_class">Класс: %1$s</string>
-    <string name="dashboard_battery">Батарея: %1$d%%</string>
+    <string name="dashboard_battery">Батарея: %1$d%</string>
     <string name="dashboard_battery_unknown">Батарея: --%</string>
     <string name="dashboard_storage">Хранилище: %1$s</string>
     <string name="dashboard_sync_progress">Ход синхронизации</string>

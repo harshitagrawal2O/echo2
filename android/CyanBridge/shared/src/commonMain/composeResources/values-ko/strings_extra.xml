@@ -411,7 +411,7 @@
     <string name="dashboard_recording_active">녹음 활성</string>
     <string name="dashboard_glasses_status">안경 상태</string>
     <string name="dashboard_class">분류: %1$s</string>
-    <string name="dashboard_battery">배터리: %1$d%%</string>
+    <string name="dashboard_battery">배터리: %1$d%</string>
     <string name="dashboard_battery_unknown">배터리: --%</string>
     <string name="dashboard_storage">저장공간: %1$s</string>
     <string name="dashboard_sync_progress">동기화 진행률</string>

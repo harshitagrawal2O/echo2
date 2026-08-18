@@ -425,7 +425,7 @@
     <string name="dashboard_recording_active">Aufnahme aktiv</string>
     <string name="dashboard_glasses_status">Brillenstatus</string>
     <string name="dashboard_class">Klasse: %1$s</string>
-    <string name="dashboard_battery">Akku: %1$d%%</string>
+    <string name="dashboard_battery">Akku: %1$d%</string>
     <string name="dashboard_battery_unknown">Akku: --%</string>
     <string name="dashboard_storage">Speicher: %1$s</string>
     <string name="dashboard_sync_progress">Synchronisierungsfortschritt</string>

@@ -411,7 +411,7 @@
     <string name="dashboard_recording_active">Registrazione attiva</string>
     <string name="dashboard_glasses_status">Stato occhiali</string>
     <string name="dashboard_class">Classe: %1$s</string>
-    <string name="dashboard_battery">Batteria: %1$d%%</string>
+    <string name="dashboard_battery">Batteria: %1$d%</string>
     <string name="dashboard_battery_unknown">Batteria: --%</string>
     <string name="dashboard_storage">Spazio: %1$s</string>
     <string name="dashboard_sync_progress">Avanzamento sincronizzazione</string>
