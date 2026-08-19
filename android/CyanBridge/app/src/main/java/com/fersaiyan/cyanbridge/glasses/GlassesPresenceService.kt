@@ -1,6 +1,7 @@
 package com.fersaiyan.cyanbridge.glasses
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -14,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.fersaiyan.cyanbridge.R
+import com.oudmon.ble.base.communication.LargeDataHandler
 
 /**
  * Keeps the process alive while the glasses are connected, so the AI button still works when the
@@ -60,6 +62,19 @@ class GlassesPresenceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_TOGGLE_ASSISTANT) {
+            val muted = AssistantMutePrefs.toggle(this)
+            Log.i(TAG, "Assistant switched " + if (muted) "off" else "on")
+            // Ask the glasses to stop listening for the wake word too, so a muted assistant is not
+            // merely ignoring triggers it still wakes up to receive. The app-side gate in
+            // AssistantMutePrefs is what actually guarantees silence - this call can be refused, and
+            // the wearer must not be left with a mute that quietly did nothing.
+            runCatching {
+                LargeDataHandler.getInstance().aiVoiceWake(true, !muted) { _, response ->
+                    Log.i(TAG, "Glasses wake-word detector now open=" + response.isOpen)
+                }
+            }.onFailure { Log.w(TAG, "Could not change the glasses wake-word detector", it) }
+        }
         // The microphone type is what makes the AI button usable from another app.
         //
         // Without it, `dumpsys audio` logs every capture as `src:VOICE_RECOGNITION silenced` -
@@ -111,20 +126,44 @@ class GlassesPresenceService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(): Notification {
+        val muted = AssistantMutePrefs.isMuted(this)
+        // The state has to be legible from the notification itself, because this is the surface a
+        // wearer reaches for when the assistant is behaving unexpectedly, and "is it switched off?"
+        // is the first question. TalkBack reads both the text and the action label.
+        val toggle = PendingIntent.getService(
+            this,
+            REQUEST_TOGGLE,
+            Intent(this, GlassesPresenceService::class.java).setAction(ACTION_TOGGLE_ASSISTANT),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Glasses connected")
-            .setContentText("Listening for the AI button")
+            .setContentTitle(if (muted) "Assistant off" else "Glasses connected")
+            .setContentText(
+                if (muted) {
+                    "Not responding to the glasses. Tap Turn on to resume."
+                } else {
+                    "Listening for the AI button"
+                },
+            )
+            .addAction(
+                0,
+                if (muted) "Turn on" else "Turn off",
+                toggle,
+            )
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
 
     companion object {
         private const val TAG = "GlassesPresence"
         private const val CHANNEL_ID = "glasses_presence"
         private const val NOTIFICATION_ID = 4711
+        private const val REQUEST_TOGGLE = 4712
+        const val ACTION_TOGGLE_ASSISTANT = "com.fersaiyan.cyanbridge.TOGGLE_ASSISTANT"
 
         fun start(context: Context) {
             runCatching {

@@ -85,9 +85,19 @@ object RemoteOpenAiPrefs {
         prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply()
     }
 
-    /** Returns true if we have at least a base URL and model configured. */
+    /**
+     * Whether this provider has everything it needs to answer a question.
+     *
+     * The API key counts. Without it here, a device with a base URL and a model reported itself
+     * configured, every gate upstream passed, and the wearer's first question came back as an opaque
+     * 401 - spoken aloud, with nothing to indicate that setup was incomplete rather than broken. On
+     * the developer's own phone the key was always present so this never showed; on a fresh phone it
+     * is the default state.
+     */
     fun isConfigured(context: Context): Boolean {
-        return getBaseUrl(context).isNotBlank() && getModel(context).isNotBlank()
+        return getBaseUrl(context).isNotBlank() &&
+            getModel(context).isNotBlank() &&
+            getApiKey(context).isNotBlank()
     }
 
     /** Whether the Studio Bridge (approval notifications) is enabled. */

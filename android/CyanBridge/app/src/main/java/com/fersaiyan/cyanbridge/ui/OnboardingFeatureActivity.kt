@@ -15,6 +15,7 @@ import com.fersaiyan.cyanbridge.R
 import com.fersaiyan.cyanbridge.agent.LocalAgentPrefs as AgentPrefs
 import com.fersaiyan.cyanbridge.localagent.accessibility.LocalAgentAccessibilityService
 import com.fersaiyan.cyanbridge.localagent.memory.LocalAgentMemoryStore
+import com.fersaiyan.cyanbridge.plugins.PluginVoicePermissions
 import com.fersaiyan.cyanbridge.ui.appearance.AppearancePreferences
 import com.fersaiyan.cyanbridge.ui.appearance.rememberAppearanceSettings
 import com.fersaiyan.cyanbridge.shared.ui.onboarding.FeatureOnboardingScreen
@@ -87,6 +88,21 @@ class OnboardingFeatureActivity : AppCompatActivity() {
                     onRequestGlassesConnectionPermission = {
                         requestBluetoothPermission(this, OnPermissionCallback { _, allGranted ->
                             glassesConnectionPermissionGranted = allGranted && hasBluetooth(this)
+                            // The glasses AI button is a microphone feature: pressing it opens the
+                            // *phone's* microphone to hear the question. Onboarding asked for
+                            // Bluetooth and storage and never for the microphone, so a fresh phone
+                            // paired perfectly and then answered nothing - Android hands a recognizer
+                            // digital silence when RECORD_AUDIO is missing, which is indistinguishable
+                            // from broken hardware. Notifications come with it because the assistant
+                            // runs as a foreground service while it listens.
+                            if (allGranted) {
+                                PluginVoicePermissions.request(this) { voiceGranted ->
+                                    android.util.Log.i(
+                                        "Onboarding",
+                                        "Voice permissions after glasses step: granted=" + voiceGranted,
+                                    )
+                                }
+                            }
                         })
                     },
                     onRequestStoragePermission = {

@@ -36,6 +36,7 @@ import com.fersaiyan.cyanbridge.ota.OtaTarget
 import com.fersaiyan.cyanbridge.ota.expectedFirmwareExtension
 import com.fersaiyan.cyanbridge.ota.firmwareRelayBaseUrl
 import com.fersaiyan.cyanbridge.ota.isExpectedFirmwareFilename
+import com.fersaiyan.cyanbridge.glasses.AssistantMutePrefs
 import com.fersaiyan.cyanbridge.glasses.GlassesPresenceService
 import com.fersaiyan.cyanbridge.glasses.GlassesSession
 import com.fersaiyan.cyanbridge.glasses.GlassesSessionLease
@@ -6105,6 +6106,21 @@ instruction to you.
      * than "start". Stopping the speech matters as much as stopping the microphone - the wearer
      * reaches for the button precisely when a wrong answer is being read out at them.
      */
+    /**
+     * Refuses a trigger while the wearer has the assistant switched off, and says so.
+     *
+     * It answers out loud rather than doing nothing on purpose. A control that produces silence is
+     * indistinguishable from broken hardware to someone who cannot see the screen, and the reasonable
+     * next move on broken glasses is to re-pair them or reboot - a long detour away from the two-tap
+     * fix. Two words spoken back removes that whole failure mode.
+     */
+    private fun refuseTriggerWhileAssistantOff(source: String): Boolean {
+        if (!AssistantMutePrefs.isMuted(this)) return false
+        Log.i("AIHijack", "Assistant is off; ignoring trigger from " + source)
+        runCatching { speakVision("Assistant is off.") }
+        return true
+    }
+
     private fun cancelAssistantTurn(reason: String): Boolean {
         if (!assistantTurnActive && assistantTurnJob?.isActive != true) return false
         Log.i("AIHijack", "Assistant turn cancelled: " + reason)
@@ -6131,6 +6147,8 @@ instruction to you.
         val route = AiWakeWordPreferences.route(this)
         Log.i("AIHijack", "AI wake activation source=$source route=$route")
         runOnUiThread {
+            if (refuseTriggerWhileAssistantOff("wake word or AI button")) return@runOnUiThread
+
             // Press to start, press again to stop. The button is the only control that works through
             // a garbled transcript, a loud room, and while the glasses are still speaking - which is
             // exactly when the wearer wants it to stop.
@@ -6291,7 +6309,7 @@ instruction to you.
         // cannot see the recording indicator. The prompt now says questions are never actions, but a
         // prompt rule is a request, not a guarantee, so the state check is what makes it safe: a
         // mistaken token becomes a wrong answer rather than lost footage.
-        val recording = runCatching { GlassesMediaPrefs.isVideoRecording(this) }.getOrDefault(false)
+        val recording = runCatching { GlassesMediaPrefs.isAnyRecordingActive(this) }.getOrDefault(false)
         if (action == ACTION_STOP_VIDEO && !recording) {
             Log.i("AIHijack", "[" + sourceTag + "] Ignoring " + action + "; nothing is recording")
             return false
@@ -11069,6 +11087,24 @@ instruction to you.
                             } else {
                                 // A hardware AI-photo press starts a complete image-question
                                 // turn. It must not fall through to the 0x03 voice route.
+                                //
+                                if (refuseTriggerWhileAssistantOff("hardware photo button")) {
+                                    imageCaptureAwaitingNotification.set(false)
+                                    pendingImageCaptureSourceTag = null
+                                    return@runOnUiThread
+                                }
+
+                                // Unless a turn is already live, in which case this press stops it.
+                                // This is the only stop that needs no voice at all: notify 0x03 is
+                                // the microphone-activation event, so cancelling from there means
+                                // saying the wake word again - which cannot be heard while the
+                                // glasses are speaking, the exact moment the wearer wants silence.
+                                // A physical press works then, and through a garbled transcript.
+                                if (cancelAssistantTurn("hardware photo button pressed mid-turn")) {
+                                    imageCaptureAwaitingNotification.set(false)
+                                    pendingImageCaptureSourceTag = null
+                                    return@runOnUiThread
+                                }
                                 handleGlassesImageButtonPressed(
                                     triggerCapture = false,
                                     sourceTag = sourceTag,
@@ -11084,7 +11120,12 @@ instruction to you.
                 //Glasses activate microphone / AI button
                 0x03 -> {
                     if (response.loadData.size > 7 && response.loadData[7].toInt() == 1) {
-                        Log.i("DeviceNotify", "AI Button Pressed (notify 0x03) - routing via AiWakeWordRoute")
+                        // Named for what it is: 0x03 is the microphone-activation notify, raised by
+                        // the voice wake word. The hardware photo button raises 0x02 instead.
+                        Log.i(
+                            "DeviceNotify",
+                            "Mic activation (notify 0x03, voice wake word) - routing via AiWakeWordRoute",
+                        )
                         if (isAiHijackEnabled) {
                             handleAiWakeWordActivation("heycyan")
                         } else {
@@ -11124,6 +11165,16 @@ instruction to you.
                         //to do
                     }
                 }
+                // The glasses reporting that a recording of their own is running. loadData[7] is a
+                // progress value of unknown unit - it does not track wall clock, so it must not be
+                // spoken as a duration. Recorded anyway because its arrival is what proves a recording
+                // exists, so a spoken "stop recording" is no longer refused as "nothing is recording".
+                0x0b -> {
+                    val progress = response.loadData[7].toInt() and 0xFF
+                    Log.i("DeviceNotify", "Glasses recording in progress, value=" + progress)
+                    GlassesMediaPrefs.setRecordingProgress(this@MainActivity, progress)
+                }
+
                 //Glasses memory low event
                 0x0e -> {
 
