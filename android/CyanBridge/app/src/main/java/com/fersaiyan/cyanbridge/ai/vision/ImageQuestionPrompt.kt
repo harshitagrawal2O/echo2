@@ -82,6 +82,17 @@ object ImageQuestionPromptResolver {
     fun resolve(
         settings: ImageQuestionSettings,
         userQuestion: String?,
+        /**
+         * Whether to append the response-language line to the question text.
+         *
+         * Callers that already carry the instruction in their own system prompt pass false.
+         * Appending it here as well put "Answer only in English (en)." inside the wearer's own
+         * words, and since that text is what gets stored as conversation history, every later
+         * turn saw the instruction quoted back as something the wearer had said.
+         *
+         * Defaults to true so callers with no system prompt of their own keep working.
+         */
+        includeLanguageInstruction: Boolean = true,
     ): ResolvedImageQuestionPrompt {
         val languageTag = settings.appLanguageTag.ifBlank { "en" }
         val question = userQuestion?.trim().takeUnless { it.isNullOrBlank() }
@@ -90,7 +101,11 @@ object ImageQuestionPromptResolver {
             }
 
         return ResolvedImageQuestionPrompt(
-            text = "$question\n\n${ImageQuestionDefaults.responseLanguageInstruction(languageTag)}",
+            text = if (includeLanguageInstruction) {
+                "$question\n\n${ImageQuestionDefaults.responseLanguageInstruction(languageTag)}"
+            } else {
+                question
+            },
         )
     }
 }

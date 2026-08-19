@@ -60,25 +60,50 @@ class GlassesPresenceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        runCatching {
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                buildNotification(),
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-                } else {
-                    0
-                },
-            )
-            Log.i(TAG, "Holding the process up while the glasses are connected")
-        }.onFailure {
-            // A foreground start can be refused; the app then behaves as it did before this
-            // existed rather than crashing.
-            Log.w(TAG, "Could not enter the foreground; process may still be killed", it)
-            stopSelf()
+        // The microphone type is what makes the AI button usable from another app.
+        //
+        // Without it, `dumpsys audio` logs every capture as `src:VOICE_RECOGNITION silenced` -
+        // Android hands the recognizer silence rather than audio, because a backgrounded app with no
+        // microphone foreground-service claim is not allowed to listen. The symptom is
+        // indistinguishable from a broken headset: one RMS sample at -2 dB, `streamLookedDead`, no
+        // transcript. It reads as a Bluetooth routing fault because it only shows up while the app is
+        // off-screen - which is exactly when someone uses the glasses.
+        //
+        // `connectedDevice` stays because the reason to be alive at all is a connected pair of
+        // glasses; `microphone` is what lets the listening work.
+        val types = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        } else {
+            0
+        }
+
+        if (!startForegroundWithTypes(types)) {
+            // A microphone-typed start can be refused - the permission may be missing, or the OS may
+            // disallow it from the current process state. Falling back keeps the original benefit of
+            // the process staying alive rather than losing both.
+            Log.w(TAG, "Microphone foreground type refused; holding the process without it")
+            val fallback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            } else {
+                0
+            }
+            if (!startForegroundWithTypes(fallback)) {
+                Log.w(TAG, "Could not enter the foreground; process may still be killed")
+                stopSelf()
+            }
         }
         return START_STICKY
+    }
+
+    /** Returns true when the service entered the foreground with [types]. */
+    private fun startForegroundWithTypes(types: Int): Boolean = runCatching {
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), types)
+        Log.i(TAG, "Holding the process up while the glasses are connected (types=" + types + ")")
+        true
+    }.getOrElse {
+        Log.w(TAG, "Foreground start refused for types=" + types, it)
+        false
     }
 
     override fun onDestroy() {

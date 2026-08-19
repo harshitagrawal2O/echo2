@@ -316,7 +316,7 @@
         <service
             android:name=".glasses.GlassesPresenceService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|microphone" />
 
         <service
             android:name=".localagent.accessibility.LocalAgentAccessibilityService"
