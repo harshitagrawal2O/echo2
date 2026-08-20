@@ -117,7 +117,13 @@ object RemoteOpenAiClient {
         val baseUrl = RemoteOpenAiPrefs.getBaseUrl(context)
         if (baseUrl.isBlank()) return "No base URL configured"
 
-        val modelsUrl = baseUrl.trimEnd('/').replace("/v1$", "") + "/v1/models"
+        // removeSuffix, not replace: `replace("/v1$", "")` is a *literal* replacement in Kotlin, so it
+        // searched for the characters `/v1$` including the dollar sign and never matched. A base URL
+        // ending in /v1 - which is how every OpenAI-compatible provider documents it - therefore
+        // produced /v1/v1/models and a 404. Chat completions were fine, so the only thing broken was
+        // the connection test, which is precisely what someone presses while setting up a new phone
+        // before concluding their key is bad.
+        val modelsUrl = baseUrl.trimEnd('/').removeSuffix("/v1") + "/v1/models"
         return try {
             val conn = (URL(modelsUrl).openConnection() as HttpURLConnection)
             conn.requestMethod = "GET"
