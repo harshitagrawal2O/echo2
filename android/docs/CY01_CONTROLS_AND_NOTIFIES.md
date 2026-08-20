@@ -41,7 +41,7 @@ on the distinction.
 | Gesture | Notify | Behaviour |
 | --- | --- | --- |
 | btn1 single press, idle | `0x01` only | Saves a photo **on the glasses**. The phone is told the photo count changed and nothing else — no image is offered, so the app cannot and does not respond. Verified: a press raised `0x01` with the first counter incremented and **no `0x02`**. |
-| btn1 single press, **while recording** | `0x01` | **Stops the recording.** Context-dependent: the photo counter does *not* move, so no picture is taken - only the recording counter increments |
+| btn1 single press, **while recording** | `0x01` | **Stops any recording** - video started by btn1 double press *or* audio started by btn2 long press. btn1 is the universal stop. Context-dependent: the photo counter does *not* move, so no picture is taken; only the relevant recording counter increments |
 | btn1 double press | *starts a recording* | **Video, `.mp4`.** Progress reported via `0x0b` while it runs. Stopped by a single btn1 press |
 | btn2 triple press | **nothing** | The firmware waits out a gesture window, fails to classify three taps, and sends no frame at all - not even the `0x02` from the second tap. Timing-dependent: a slightly loose triple lands in the double-tap window and fires `0x02` instead, so the gesture is unusable rather than merely unbound |
 | btn1 long press | **none — powers the glasses off** | Never reaches the phone. Do not bind a long press here |
@@ -77,7 +77,7 @@ The available mitigations are therefore (a) make a false trigger cost nothing �
 
 | Code | Meaning | Payload |
 | --- | --- | --- |
-| `0x01` | Media inventory of files still **on the glasses** | Three counters: **1 = photos (`.jpg`)**, **2 = video (`.mp4`, btn1 double press)**, **3 = audio (`.opus`, btn2 long press)**. All three go to **zero** after a sync, because the app deletes each file once imported |
+| `0x01` | Media inventory of files still **on the glasses** | Three counters: **1 = photos (`.jpg`)**, **2 = video (`.mp4`, btn1 double press)**, **3 = audio (`.opus`, btn2 long press)**. Confirmed twice per gesture, the second time from an all-zero baseline left by a sync, which removes any ambiguity. All three go to **zero** after a sync, because the app deletes each file once imported |
 | `0x02` | Photo ready | `[8]` observed as 16, 14, 60, 73 — **not** a counter and not remaining capacity, despite an early guess in both directions. Probably a file id |
 | `0x03` | Microphone activation | Always `[7]=1`; identical from all three trigger sources |
 | `0x04` | OTA / firmware progress | |
@@ -103,9 +103,19 @@ Measured across three separate recordings:
 ```
 
 It has been read as elapsed seconds (contradicted by run 2), as "not time at all" (contradicted by
-run 3 rising steadily), and as a temperature curve (the decelerating increments 3,2,1,1 looked
-thermal until the next sample rose again). **Do not guess a fourth time from log samples.** The
-controlled test is a recording of known duration, comparing the first and last values.
+run 3 rising steadily), and as a temperature curve. **Do not guess again from log samples alone.**
+
+Two pieces of evidence do survive, both from *predictions* rather than re-reading the same numbers:
+
+- **Three separate recordings all began at 38-39, never near 0.** A fresh recording starting at 39
+  rules out elapsed time.
+- **Video climbs, audio does not.** A btn1 double-press (video) run went `39 -> 49` in 18 s, while a
+  btn2 long-press (audio) run held `39 -> 40` over 6 s. Video encoding is far more work than audio
+  encoding, so a load-dependent quantity - temperature being the obvious candidate - behaves exactly
+  this way. Elapsed time would not care which codec was running.
+
+Still not proven. The controlled test is a recording of known duration, comparing first and last
+values against wall clock.
 
 Only its **freshness** is trustworthy, which is enough to know a recording is running - that is all
 `GlassesMediaPrefs.recordingProgressOrNull` relies on. Never speak this number to the wearer or
