@@ -42,12 +42,12 @@ on the distinction.
 | --- | --- | --- |
 | btn1 single press, idle | `0x01` only | Saves a photo **on the glasses**. The phone is told the photo count changed and nothing else — no image is offered, so the app cannot and does not respond. Verified: a press raised `0x01` with the first counter incremented and **no `0x02`**. |
 | btn1 single press, **while recording** | `0x01` | **Stops the recording.** Context-dependent: the photo counter does *not* move, so no picture is taken - only the recording counter increments |
-| btn1 double press | *starts a recording* | Progress reported via `0x0b` while it runs; media type unconfirmed |
+| btn1 double press | *starts a recording* | **Video, `.mp4`.** Progress reported via `0x0b` while it runs. Stopped by a single btn1 press |
 | btn2 triple press | **nothing** | The firmware waits out a gesture window, fails to classify three taps, and sends no frame at all - not even the `0x02` from the second tap. Timing-dependent: a slightly loose triple lands in the double-tap window and fires `0x02` instead, so the gesture is unusable rather than merely unbound |
 | btn1 long press | **none — powers the glasses off** | Never reaches the phone. Do not bind a long press here |
 | btn2 single press | `0x03` | Microphone activation → conversation turn |
 | btn2 double press | `0x02` | Photo offered to the phone. The app describes it immediately, then opens a follow-up dialogue |
-| btn2 long press | *starts a recording* | Increments a *different* `0x01` counter than btn1 double press, so the two gestures produce different media types |
+| btn2 long press | *starts a recording* | **Audio, `.opus`.** Increments `0x01` counter 3 rather than counter 2 |
 | strip swipe toward the lens | `0x12` | Volume up |
 | strip swipe toward the ear | `0x12` | Volume down |
 | strip double tap | `0x03` | **A third AI trigger** |
@@ -77,7 +77,7 @@ The available mitigations are therefore (a) make a false trigger cost nothing �
 
 | Code | Meaning | Payload |
 | --- | --- | --- |
-| `0x01` | Media inventory | Three counters, mapping confirmed by repetition: **1 = photos**, **2 = btn1 double-press recordings**, **3 = btn2 long-press recordings**. The two recording gestures therefore produce **different media types**; which is video and which is audio is still unconfirmed - read the filename off the Recordings screen or a media sync to settle it |
+| `0x01` | Media inventory of files still **on the glasses** | Three counters: **1 = photos (`.jpg`)**, **2 = video (`.mp4`, btn1 double press)**, **3 = audio (`.opus`, btn2 long press)**. All three go to **zero** after a sync, because the app deletes each file once imported |
 | `0x02` | Photo ready | `[8]` observed as 16, 14, 60, 73 — **not** a counter and not remaining capacity, despite an early guess in both directions. Probably a file id |
 | `0x03` | Microphone activation | Always `[7]=1`; identical from all three trigger sources |
 | `0x04` | OTA / firmware progress | |
@@ -117,6 +117,22 @@ It flips to `2` about 400 ms after every microphone activation and back to `3` w
 That is the glasses stating when *they* believe the voice channel is open — worth knowing, because
 the phone's `AudioManager.isBluetoothScoOn()` returns true against SCO links that carry no audio.
 
+## Media types, confirmed by sync
+
+A sync lists and fetches from `http://<glasses-ip>/files/<name>`, with names that are timestamps
+(the glasses clock ran ~10 h behind the phone, so do not correlate them with phone-side logs
+directly - match by count and type instead):
+
+```
+20260819155817905.mp4    type=video    6,142,122 bytes
+20260819181416470.opus   type=audio        1,600 bytes
+20260819181420008.jpg    type=photo      881,492 bytes
+20260819213910849.mp4    type=video   12,116,570 bytes
+```
+
+`.opus` arrives as raw packets and is wrapped into Ogg on save
+(`OPUS save: raw=1600 bytes, out=1768 bytes, mode=wrapped packets=40`).
+
 ## The photo transfer is the slowest thing in the pipeline
 
 A btn2 double press to a usable frame, measured twice:
@@ -126,9 +142,20 @@ transferDurationMs=9922   960x540, 73595 bytes    (~7 KB/s over BLE)
 ```
 
 Ten seconds of standing still before the wearer hears anything — longer than the model call and
-longer than every latency this app has otherwise been tuned for. The Wi-Fi path
-(`WIFI_TRANSFER_ARCHITECTURE.md`) moves full-resolution files far faster, but it takes the exclusive
-`MEDIA_SYNC` lease and needs P2P association first, so it is not a drop-in replacement.
+longer than every latency this app has otherwise been tuned for.
+
+**The same hardware moves data ~200x faster over Wi-Fi.** Measured during a sync on the same
+glasses, same session:
+
+```
+BLE thumbnail :     ~7 KB/s     (73 KB frame, 9922 ms)
+Wi-Fi sync    : ~1,430 KB/s     (6 MB video in ~4 s)
+```
+
+So the ten seconds is a transport choice, not a hardware limit, and the fast path is already
+implemented. What makes it non-trivial to reuse for a single question is the exclusive `MEDIA_SYNC`
+lease and the P2P association it needs first — worth measuring how long association alone costs
+before assuming it cannot beat 10 s.
 
 ## Vendor SDK controls worth knowing
 
