@@ -21,19 +21,39 @@ loadData = BC 73 <len> 00 <ck0> <ck1> <code> <payload...>
 notify code and `[7]` onwards the payload. Read payload bytes as unsigned (`x.toInt() and 0xFF`) —
 they arrive as signed Kotlin bytes.
 
+## Naming
+
+Use these names in code, comments and commit messages, so a control is never described by guesswork
+about what it is "for":
+
+| Name | Physical control |
+| --- | --- |
+| **btn1** | The picture button |
+| **btn2** | The other button |
+| **strip** | Right-side touch surface |
+
+`btn2` is a name for a *control*, not for a signal. Nothing in the app can prove a `0x03` came from
+btn2 rather than from the wake word or from a sleeve brushing the strip, so no behaviour may depend
+on the distinction.
+
 ## Physical controls
 
-| Control | Notify | Notes |
+| Gesture | Notify | Behaviour |
 | --- | --- | --- |
-| Picture button, single press | `0x02` | Photo ready; the app starts an image-question turn, source tag `hardware_image_button` |
-| Picture button, double press | *starts a recording* | Reports progress via `0x0b`; media type unconfirmed |
-| Picture button, long press | **none — powers the glasses off** | Do not bind a long-press gesture to this button |
-| AI button, single press | `0x03` | Microphone activation |
-| Touch strip, swipe toward the lens | `0x12` | Volume up |
-| Touch strip, swipe toward the ear | `0x12` | Volume down |
-| Touch strip, double tap | `0x03` | **A third AI trigger** |
-| Second button, long press | *starts a recording* | A *different* `0x01` counter increments than for the double press, so the two gestures appear to produce different media types |
-| Touch strip single tap / press-and-hold | none observed | Either unimplemented or handled entirely in firmware |
+| btn1 single press | `0x01` only | Saves a photo **on the glasses**. The phone is told the photo count changed and nothing else — no image is offered, so the app cannot and does not respond. Verified: a press raised `0x01` with the first counter incremented and **no `0x02`**. |
+| btn1 double press | *starts a recording* | Progress reported via `0x0b`; media type unconfirmed |
+| btn1 long press | **none — powers the glasses off** | Never reaches the phone. Do not bind a long press here |
+| btn2 single press | `0x03` | Microphone activation → conversation turn |
+| btn2 double press | `0x02` | Photo offered to the phone. The app describes it immediately, then opens a follow-up dialogue |
+| btn2 long press | *starts a recording* | Increments a *different* `0x01` counter than btn1 double press, so the two gestures produce different media types |
+| strip swipe toward the lens | `0x12` | Volume up |
+| strip swipe toward the ear | `0x12` | Volume down |
+| strip double tap | `0x03` | **A third AI trigger** |
+| strip single tap / press-and-hold | none observed | Unimplemented, or handled entirely in firmware |
+
+`0x02` is therefore **unique to btn2 double press**, and is the one photo signal the app can act on.
+An earlier draft of this file attributed `0x02` to btn1 single press; that was an assumption about
+which button had been pressed during logging, and measurement disproved it.
 
 ### The three triggers are indistinguishable
 
@@ -55,8 +75,8 @@ The available mitigations are therefore (a) make a false trigger cost nothing �
 
 | Code | Meaning | Payload |
 | --- | --- | --- |
-| `0x01` | Media inventory | Three counters; a *different* one increments after a double press than after a long press |
-| `0x02` | Photo ready | `[8]` decreased 16 → 14 over two captures; possibly remaining capacity |
+| `0x01` | Media inventory | Three counters. The **first is the photo count** (rose to 5 on a btn1 press); the second and third correspond to the two recording gestures |
+| `0x02` | Photo ready | `[8]` observed as 16, 14, 60, 73 — **not** a counter and not remaining capacity, despite an early guess in both directions. Probably a file id |
 | `0x03` | Microphone activation | Always `[7]=1`; identical from all three trigger sources |
 | `0x04` | OTA / firmware progress | |
 | `0x05` | Battery | `[7]` = percent, `[8]` = charging |
@@ -88,6 +108,19 @@ number to the wearer or convert it to a duration until it has been identified.
 It flips to `2` about 400 ms after every microphone activation and back to `3` when the session ends.
 That is the glasses stating when *they* believe the voice channel is open — worth knowing, because
 the phone's `AudioManager.isBluetoothScoOn()` returns true against SCO links that carry no audio.
+
+## The photo transfer is the slowest thing in the pipeline
+
+A btn2 double press to a usable frame, measured twice:
+
+```
+transferDurationMs=9922   960x540, 73595 bytes    (~7 KB/s over BLE)
+```
+
+Ten seconds of standing still before the wearer hears anything — longer than the model call and
+longer than every latency this app has otherwise been tuned for. The Wi-Fi path
+(`WIFI_TRANSFER_ARCHITECTURE.md`) moves full-resolution files far faster, but it takes the exclusive
+`MEDIA_SYNC` lease and needs P2P association first, so it is not a drop-in replacement.
 
 ## Vendor SDK controls worth knowing
 

@@ -5117,6 +5117,17 @@ instruction to you.
                 if (parallelDeferred != null) {
                     Log.i("ImageQuestion", "Awaiting parallel audio question recording...")
                     initialQuestion = parallelDeferred.await()
+                } else if (!pendingImageQuestionOfferSpokenQuestion) {
+                    // Describe first, ask later. A photo-button press is already a complete request -
+                    // the wearer pressed it because they want to know what is in front of them - so
+                    // holding the answer back for 3.3 s to see whether they also want to say something
+                    // is 3.3 s of silence in exchange for nothing. They get the description, and the
+                    // follow-up listener that opens afterwards is where questions belong, because by
+                    // then they know what they are asking about.
+                    Log.i(
+                        "ImageQuestion",
+                        "Describing immediately; questions come from the follow-up instead",
+                    )
                 } else if (
                     ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
                 ) {
@@ -6272,6 +6283,13 @@ instruction to you.
                         conversationTurnInProgress = false
                     }
                 }
+            } catch (cancellation: CancellationException) {
+                // A cancelled turn is the wearer pressing again to stop, not a failure. Catching it
+                // here logged "Conversation turn failed" on every deliberate stop, and swallowing it
+                // instead of rethrowing hides the cancellation from the coroutine machinery that is
+                // waiting to observe it. cancelAssistantTurn has already torn the turn down.
+                Log.i("AIHijack", "[" + sourceTag + "] Conversation turn cancelled")
+                throw cancellation
             } catch (error: Exception) {
                 Log.e("AIHijack", "[" + sourceTag + "] Conversation turn failed", error)
                 finishAiQuestionForegroundWork()
@@ -11110,7 +11128,11 @@ instruction to you.
                                     sourceTag = sourceTag,
                                     source = ImageQuestionSourcePolicy.defaultSource(),
                                     thumbnailQuality = ImageQuestionSourcePolicy.defaultThumbnailQuality(),
-                                    offerSpokenQuestion = true,
+                                    // Describe the photo straight away, then open the conversation.
+                                    // Note this covers btn1 single press *and* btn2 double press: both
+                                    // raise this same 0x02 notify, identically, so they cannot be given
+                                    // different behaviour.
+                                    offerSpokenQuestion = false,
                                 )
                             }
                         }
