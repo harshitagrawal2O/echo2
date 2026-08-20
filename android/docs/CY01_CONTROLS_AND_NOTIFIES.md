@@ -40,8 +40,10 @@ on the distinction.
 
 | Gesture | Notify | Behaviour |
 | --- | --- | --- |
-| btn1 single press | `0x01` only | Saves a photo **on the glasses**. The phone is told the photo count changed and nothing else — no image is offered, so the app cannot and does not respond. Verified: a press raised `0x01` with the first counter incremented and **no `0x02`**. |
-| btn1 double press | *starts a recording* | Progress reported via `0x0b`; media type unconfirmed |
+| btn1 single press, idle | `0x01` only | Saves a photo **on the glasses**. The phone is told the photo count changed and nothing else — no image is offered, so the app cannot and does not respond. Verified: a press raised `0x01` with the first counter incremented and **no `0x02`**. |
+| btn1 single press, **while recording** | `0x01` | **Stops the recording.** Context-dependent: the photo counter does *not* move, so no picture is taken - only the recording counter increments |
+| btn1 double press | *starts a recording* | Progress reported via `0x0b` while it runs; media type unconfirmed |
+| btn2 triple press | **nothing** | The firmware waits out a gesture window, fails to classify three taps, and sends no frame at all - not even the `0x02` from the second tap. Timing-dependent: a slightly loose triple lands in the double-tap window and fires `0x02` instead, so the gesture is unusable rather than merely unbound |
 | btn1 long press | **none — powers the glasses off** | Never reaches the phone. Do not bind a long press here |
 | btn2 single press | `0x03` | Microphone activation → conversation turn |
 | btn2 double press | `0x02` | Photo offered to the phone. The app describes it immediately, then opens a follow-up dialogue |
@@ -75,7 +77,7 @@ The available mitigations are therefore (a) make a false trigger cost nothing �
 
 | Code | Meaning | Payload |
 | --- | --- | --- |
-| `0x01` | Media inventory | Three counters. The **first is the photo count** (rose to 5 on a btn1 press); the second and third correspond to the two recording gestures |
+| `0x01` | Media inventory | Three counters, mapping confirmed by repetition: **1 = photos**, **2 = btn1 double-press recordings**, **3 = btn2 long-press recordings**. The two recording gestures therefore produce **different media types**; which is video and which is audio is still unconfirmed - read the filename off the Recordings screen or a media sync to settle it |
 | `0x02` | Photo ready | `[8]` observed as 16, 14, 60, 73 — **not** a counter and not remaining capacity, despite an early guess in both directions. Probably a file id |
 | `0x03` | Microphone activation | Always `[7]=1`; identical from all three trigger sources |
 | `0x04` | OTA / firmware progress | |
@@ -90,18 +92,24 @@ The available mitigations are therefore (a) make a false trigger cost nothing �
 | `0x10` | Translation pause | |
 | `0x12` | Volume / audio scene | Three channels as `(id, 0, max, current)`; the **trailing byte** is `2` while a voice session is open and `3` when idle |
 
-### `0x0b` is not a clock
+### `0x0b`'s unit is unknown, and three guesses have failed
 
-It was read as elapsed seconds on three samples, then measured again and contradicted:
+Measured across three separate recordings:
 
 ```
-41 → 43 → 46   across 6 s of wall clock   (faster than real time)
-40 → 41 → 41 → 42   across 9 s            (slower than real time)
+41 → 43 → 46          over 6 s     (faster than wall clock)
+40 → 41 → 41 → 42     over 9 s     (slower than wall clock)
+39 → 42 → 44 → 45 → 46 → 48 → 49   over 18 s   (+10, about 0.6/s, increments 3,2,1,1,2,1)
 ```
 
-Neither fits a timer. Only its **freshness** is trustworthy, which is enough to know a recording is
-running — that is all `GlassesMediaPrefs.recordingProgressOrNull` relies on. Do not speak this
-number to the wearer or convert it to a duration until it has been identified.
+It has been read as elapsed seconds (contradicted by run 2), as "not time at all" (contradicted by
+run 3 rising steadily), and as a temperature curve (the decelerating increments 3,2,1,1 looked
+thermal until the next sample rose again). **Do not guess a fourth time from log samples.** The
+controlled test is a recording of known duration, comparing the first and last values.
+
+Only its **freshness** is trustworthy, which is enough to know a recording is running - that is all
+`GlassesMediaPrefs.recordingProgressOrNull` relies on. Never speak this number to the wearer or
+present it as a duration.
 
 ### `0x12`'s trailing byte is a useful signal
 

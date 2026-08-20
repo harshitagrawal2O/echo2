@@ -79,3 +79,9 @@ graphify-out/
 # Local recovery/export snapshots
 backups/
 android/CyanBridge/_local_termux_server_phone_current/
+
+# API keys - never commit
+*API*.txt
+*api*.txt
+*.key
+.env
