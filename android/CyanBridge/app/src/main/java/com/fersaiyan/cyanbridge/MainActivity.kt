@@ -220,8 +220,11 @@ import com.fersaiyan.cyanbridge.ai.image.ExternalImageAutomationStore
 import com.fersaiyan.cyanbridge.ai.image.ImageAutomationTarget
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionBroadcast
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSource
+import com.fersaiyan.cyanbridge.ai.feedback.AskFeedback
+import com.fersaiyan.cyanbridge.ai.feedback.SpeechRouter
 import com.fersaiyan.cyanbridge.ai.image.ImageQuestionSourcePolicy
 import com.fersaiyan.cyanbridge.ai.image.ImageThumbnailQuality
+import com.fersaiyan.cyanbridge.ai.image.PhoneCameraCapture
 import com.fersaiyan.cyanbridge.ai.AiQuestionForegroundService
 import com.fersaiyan.cyanbridge.ai.image.HighQualityFailureChoice
 import com.fersaiyan.cyanbridge.shared.glasses.GlassesAssistantMode
@@ -337,6 +340,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         streamType: Int? = null,
         onDone: (() -> Unit)? = null,
     ) {
+        // Any speech ends the thinking pulse: a pulse under a voice promises work that speech
+        // is already delivering.
+        askFeedback.stopThinking()
         val engine = tts
         languageTag?.takeIf { it.isNotBlank() }?.let { tag ->
             val result = engine?.setLanguage(Locale.forLanguageTag(tag))
@@ -558,6 +564,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var eyevueUiJob: Job? = null
     private var eyevueWakeWordJob: Job? = null
     private val eyevueAiPhotoInProgress = AtomicBoolean(false)
+    private val phoneCameraCaptureInProgress = AtomicBoolean(false)
+
+    /** The fixed earcon + haptic vocabulary for the ask loop; see [AskFeedback]. */
+    private val askFeedback by lazy { AskFeedback.get(this) }
 
     private val metaAndroidPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -4114,6 +4124,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun finishAiQuestionForegroundWork() {
+        // This runs on every terminal path of an ask, so no failure can leave a pulse promising
+        // an answer that is not coming.
+        askFeedback.stopThinking()
         AiQuestionForegroundService.stop(this)
     }
 
@@ -4179,7 +4192,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 })
             return
         }
-        pendingImageQuestionSource = source
+        // Falls back to the phone camera when the glasses cannot supply an image, so the question
+        // still gets answered. Also lets the whole path be exercised with no hardware paired.
+        pendingImageQuestionSource = ImageQuestionSourcePolicy.sourceForQuestion(
+            glassesConnected = BleOperateManager.getInstance().isConnected,
+            preferred = source,
+        )
         pendingImageThumbnailQuality = thumbnailQuality
         pendingImageCaptureStartedAtMs = System.currentTimeMillis()
         pendingImageQuestionOfferSpokenQuestion = offerSpokenQuestion
@@ -4288,7 +4306,76 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         when (pendingImageQuestionSource) {
             ImageQuestionSource.HIGH_QUALITY -> requestHighQualityImageForQuestion(sourceTag)
             ImageQuestionSource.FAST_PREVIEW -> requestImageThumbnailForQuestion(sourceTag)
+            ImageQuestionSource.PHONE_CAMERA -> capturePhoneCameraForQuestion(sourceTag)
         }
+    }
+
+    /**
+     * Answers an image question using the phone's own camera.
+     *
+     * Unlike the two glasses sources this takes no [GlassesSessionCoordinator] permit and does not
+     * consult [isGlassesCommandBlocked]: nothing here reaches the glasses, so blocking on their
+     * lease would stall a capture that cannot conflict with media sync or OTA. It also means this
+     * path works with no glasses paired at all.
+     */
+    private fun capturePhoneCameraForQuestion(sourceTag: String) {
+        if (!PhoneCameraCapture.hasPermission(this)) {
+            Log.w("AIHijack", "[$sourceTag] Phone camera permission not granted")
+            clearPendingVoiceImageQuestion(sourceTag)
+            finishAiQuestionForegroundWork()
+            speakAndToast("Camera permission is needed to answer questions about what you see.")
+            return
+        }
+        if (!phoneCameraCaptureInProgress.compareAndSet(false, true)) {
+            Log.i("AIHijack", "[$sourceTag] Phone camera capture already in progress")
+            return
+        }
+
+        Log.i("ImageQuestionTransfer", "[$sourceTag] Starting phone camera capture")
+        lifecycleScope.launch {
+            try {
+                when (val result = PhoneCameraCapture(this@MainActivity).capture(this@MainActivity)) {
+                    is PhoneCameraCapture.Result.Success -> {
+                        Log.i(
+                            "AIHijack",
+                            "[$sourceTag] Phone capture complete: ${result.file.absolutePath} " +
+                                "(${result.file.length()} bytes, ${result.durationMs} ms)",
+                        )
+                        askFeedback.captured()
+                        onImageReadyForQuestion(
+                            imagePath = result.file.absolutePath,
+                            source = ImageQuestionSource.PHONE_CAMERA,
+                            transferDurationMs = result.durationMs,
+                        )
+                    }
+
+                    is PhoneCameraCapture.Result.Failure -> {
+                        Log.e("AIHijack", "[$sourceTag] Phone capture failed: ${result.reason}", result.cause)
+                        clearPendingVoiceImageQuestion(sourceTag)
+                        finishAiQuestionForegroundWork()
+                        speakAndToast(result.reason)
+                    }
+                }
+            } finally {
+                phoneCameraCaptureInProgress.set(false)
+            }
+        }
+    }
+
+    /**
+     * Reports a failure audibly as well as visually.
+     *
+     * A toast alone is invisible to the users this app exists for, and a capture that fails in
+     * silence is indistinguishable from one still thinking.
+     */
+    private fun speakAndToast(message: String) {
+        askFeedback.failure()
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        // State narration is arbitrated: with TalkBack running it becomes an accessibility
+        // announcement so it is spoken once, in the user's configured voice; without it the
+        // router self-voices, because a silent failure is indistinguishable from thinking.
+        runCatching { SpeechRouter.get(this).speakState(message) }
+            .onFailure { Log.w("AIHijack", "Could not speak failure message", it) }
     }
 
     private fun captureMetaImageForQuestion(sourceTag: String) {
@@ -4555,6 +4642,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        // The image is valid and the request is now in flight. Pulse until speech or cleanup:
+        // 5-15 s of silence between asking and hearing an answer reads as a crash to a user who
+        // cannot see the screen, and a second press would race the first request.
+        askFeedback.startThinking()
+
         val sourceLabel = if (source == ImageQuestionSource.FAST_PREVIEW) {
             "${pendingImageThumbnailQuality.label} BLE preview"
         } else {
@@ -4808,7 +4900,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     )
 
                     lifecycleScope.launch {
-                        playImageQuestionTone(android.media.ToneGenerator.TONE_PROP_BEEP2)
+                        askFeedback.listeningClosed()
                         cleanup()
                         if (cont.isActive) {
                             cont.resume(cleaned)
@@ -4819,7 +4911,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 startBluetoothMicRoute(audioManager)
 
                 lifecycleScope.launch {
-                    playImageQuestionTone(android.media.ToneGenerator.TONE_PROP_BEEP)
+                    askFeedback.listeningOpened()
                     speakImageQuestionCue()
                     if (finished || !cont.isActive) return@launch
 
@@ -4880,21 +4972,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     finish(null)
                 }
             }
-        }
-    }
-
-    private suspend fun playImageQuestionTone(toneType: Int) {
-        val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_VOICE_CALL, 90)
-        try {
-            val played = tone.startTone(toneType, 240)
-            Log.i(
-                "ImageQuestionAudio",
-                "Image-question tone type=$toneType played=$played route=${audioRouteSummary(audioManager)}",
-            )
-            delay(300L)
-        } finally {
-            tone.release()
         }
     }
 

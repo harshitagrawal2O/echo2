@@ -13,6 +13,22 @@ enum class ImageQuestionSource(
         wireName = "fast_preview",
         label = "Fast preview (BLE thumbnail)",
     ),
+
+    /**
+     * The phone's own camera, with no glasses involved.
+     *
+     * Serves two purposes. It lets the app answer questions about what the camera sees when the
+     * glasses are flat, out of range, or not owned at all, which is the form factor most assistive
+     * vision apps ship. It also makes every path downstream of capture testable without hardware.
+     *
+     * Nothing here acquires a [com.fersaiyan.cyanbridge.glasses.GlassesSessionCoordinator] lease:
+     * the vendor callback slots are global singletons, and taking one for a phone capture would
+     * block media sync and OTA for a transfer that never touches the glasses.
+     */
+    PHONE_CAMERA(
+        wireName = "phone_camera",
+        label = "Phone camera (no glasses)",
+    ),
 }
 
 /** Verified thumbnail sizes exposed by the vendor app's AI clarity selector. */
@@ -43,6 +59,26 @@ enum class ImageSourceResolution {
 
 object ImageQuestionSourcePolicy {
     fun defaultSource(): ImageQuestionSource = ImageQuestionSource.FAST_PREVIEW
+
+    /**
+     * Chooses where the bytes come from for one question.
+     *
+     * Falls back to the phone camera whenever the glasses cannot supply an image, so the question
+     * is answered instead of failing. Both glasses sources need a live BLE link: [ImageQuestionSource.FAST_PREVIEW]
+     * reads a thumbnail over it and [ImageQuestionSource.HIGH_QUALITY] negotiates Wi-Fi Direct across it.
+     *
+     * Asking and getting an answer beats asking and being told the glasses are not connected —
+     * particularly for a user who cannot see that they have gone flat. It also means every path
+     * downstream of capture can be exercised on a phone with no hardware present.
+     */
+    fun sourceForQuestion(
+        glassesConnected: Boolean,
+        preferred: ImageQuestionSource = defaultSource(),
+    ): ImageQuestionSource = when {
+        preferred == ImageQuestionSource.PHONE_CAMERA -> ImageQuestionSource.PHONE_CAMERA
+        glassesConnected -> preferred
+        else -> ImageQuestionSource.PHONE_CAMERA
+    }
 
     fun defaultThumbnailQuality(): ImageThumbnailQuality = ImageThumbnailQuality.DETAILED
 

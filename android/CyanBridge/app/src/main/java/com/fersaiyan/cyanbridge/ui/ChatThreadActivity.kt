@@ -213,6 +213,11 @@ class ChatThreadActivity : AppCompatActivity() {
                     onRecordAudio = ::toggleAudioRecording,
                     onClearAttachments = ::clearPendingAttachments,
                     onDestinationSelected = ::navigateTo,
+                    // Tap a bubble to hear it. This answers the most-cited gap in the Echo
+                    // Vision review: history that can only be read with a screen reader on.
+                    onSpeakMessage = { text ->
+                        com.fersaiyan.cyanbridge.ai.feedback.SpeechRouter.get(this).speakContent(text)
+                    },
                 )
                 if (chatAppearanceMenuVisible) {
                     ChatAppearanceMenuDialog(

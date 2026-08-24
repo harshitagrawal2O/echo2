@@ -19,7 +19,7 @@ data class GlassesDashboardUiState(
     val meeting: GlassesMeetingUiState = GlassesMeetingUiState(),
     val nativePluginShortcut: NativePluginShortcutUiState? = null,
     val assistantMode: GlassesAssistantMode = GlassesAssistantMode.PHONE_ASSISTANT,
-    val aiWakeWordRoute: AiWakeWordRoute = AiWakeWordRoute.VOICE_QUESTION,
+    val aiWakeWordRoute: AiWakeWordRoute = AiWakeWordRoute.IMAGE_QUESTION,
     val imageQueryEnabled: Boolean = true,
     val imageQueryLabel: String = "Test image AI description",
     val imageThumbnailQualitySdkValue: Int = 5,
@@ -88,8 +88,17 @@ enum class AiWakeWordRoute {
     IMAGE_QUESTION;
 
     companion object {
+        /**
+         * Defaults to [IMAGE_QUESTION] so the AI button answers questions about what the
+         * camera sees, using the in-app vision path.
+         *
+         * [VOICE_QUESTION] hands off to the phone's default assistant, which only works once
+         * Tasker, AutoInput and a Gemini/ChatGPT assistant handoff have all been configured.
+         * Defaulting there meant a fresh install pointed the button at a route that cannot
+         * run until three external dependencies are installed and set up.
+         */
         fun fromRaw(raw: String?): AiWakeWordRoute =
-            entries.firstOrNull { it.name == raw?.trim()?.uppercase() } ?: VOICE_QUESTION
+            entries.firstOrNull { it.name == raw?.trim()?.uppercase() } ?: IMAGE_QUESTION
     }
 }
 

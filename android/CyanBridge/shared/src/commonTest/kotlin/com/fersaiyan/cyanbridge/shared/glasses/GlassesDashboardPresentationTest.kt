@@ -43,13 +43,20 @@ class GlassesDashboardPresentationTest {
     }
 
     @Test
-    fun wakeWordRouteIsDashboardOwnedAndDefaultsToVoice() {
-        assertEquals(AiWakeWordRoute.VOICE_QUESTION, GlassesDashboardUiState().aiWakeWordRoute)
+    fun wakeWordRouteIsDashboardOwnedAndDefaultsToImage() {
+        assertEquals(AiWakeWordRoute.IMAGE_QUESTION, GlassesDashboardUiState().aiWakeWordRoute)
         assertEquals(
             AiWakeWordRoute.IMAGE_QUESTION,
             GlassesDashboardAction.SetAiWakeWordRoute(AiWakeWordRoute.IMAGE_QUESTION).route,
         )
-        assertEquals(AiWakeWordRoute.VOICE_QUESTION, AiWakeWordRoute.fromRaw("unsupported"))
+        assertEquals(
+            AiWakeWordRoute.VOICE_QUESTION,
+            GlassesDashboardAction.SetAiWakeWordRoute(AiWakeWordRoute.VOICE_QUESTION).route,
+        )
+        // Unrecognised and absent values fall back to the in-app vision path rather than the
+        // assistant handoff, which cannot run until Tasker and AutoInput are installed.
+        assertEquals(AiWakeWordRoute.IMAGE_QUESTION, AiWakeWordRoute.fromRaw("unsupported"))
+        assertEquals(AiWakeWordRoute.IMAGE_QUESTION, AiWakeWordRoute.fromRaw(null))
     }
 
     @Test
