@@ -319,6 +319,14 @@
             android:exported="false"
             android:label="Cue Settings" />
 
+        <!-- Payments are authorised here and nowhere else: not exported, and singleTop so a second
+             capture cannot stack a second confirmation screen behind the first. -->
+        <activity
+            android:name=".plugins.zygopay.ZygoPayActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:label="UPI Payment" />
+
         <activity
             android:name=".bridge.runtimes.evenhub.EvenHubRuntimeActivity"
             android:exported="false" />

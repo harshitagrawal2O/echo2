@@ -103,6 +103,16 @@ android {
         buildConfigField "String", "WEB_SUB_ALLOWED_COUNTRIES", "\"${webAllowedCountries}\""
         buildConfigField "String", "DONATION_URL", "\"${donationUrl}\""
 
+        // Zygo (UPI-over-Solana) payment service. Neither value is the merchant secret - that
+        // stays in services/zygo/ and never reaches a device. The URL is where this app finds the
+        // service; the token is an abuse gate that ships in the APK by necessity. Both are Gradle
+        // properties so nothing is committed, and both can be overridden at runtime in the
+        // plugin's settings for whoever is demoing.
+        def zygoServiceUrl = project.findProperty("ZYGO_SERVICE_URL") ?: ""
+        def zygoProxyToken = project.findProperty("ZYGO_PROXY_TOKEN") ?: ""
+        buildConfigField "String", "ZYGO_SERVICE_URL", "\"${zygoServiceUrl}\""
+        buildConfigField "String", "ZYGO_PROXY_TOKEN", "\"${zygoProxyToken}\""
+
         // Lets UI gate on the variant. Without this the Meta panel is gated only on which device
         // profile the user picked, so a non-Meta build still renders the whole Ray-Ban panel with
         // every control permanently dead — which is the "nonfunctional Meta UI" this split exists
@@ -272,6 +282,15 @@ dependencies {
 
     // Offline transcription fallback (Moonshine; vendored module)
     implementation project(":moonshine-voice")
+
+    // UPI QR decoding for the Zygo payment plugin. Bundled rather than the Play-services
+    // variant: the decode happens on a still already in memory, and a plugin that pays a
+    // merchant must not depend on a model download completing first.
+    implementation 'com.google.mlkit:barcode-scanning:17.3.0'
+
+    // Solana Mobile Wallet Adapter: the user's own wallet signs every deposit, so no key and
+    // no seed ever reaches this app or the Zygo service.
+    implementation 'com.solanamobile:mobile-wallet-adapter-clientlib-ktx:2.0.3'
 
     // Legacy offline transcription fallback (Vosk) - kept for now until Moonshine is fully wired
     implementation "com.alphacephei:vosk-android:0.3.47"

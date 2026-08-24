@@ -29,6 +29,8 @@ import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidService
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidSettingsActivity
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidPreferences
 import com.fersaiyan.cyanbridge.plugins.cue.CuePlugin
+import com.fersaiyan.cyanbridge.plugins.zygopay.ZygoPayPlugin
+import com.fersaiyan.cyanbridge.plugins.zygopay.ZygoPayPreferences
 import com.fersaiyan.cyanbridge.plugins.cue.CuePreferences
 import com.fersaiyan.cyanbridge.plugins.cue.CueSettingsActivity
 import com.fersaiyan.cyanbridge.plugins.meetingsparknotes.MeetingSparkNotesService
@@ -132,6 +134,17 @@ class CommunityPluginsActivity : AppCompatActivity() {
                 badge = "Accessibility",
                 enabled = CuePreferences.isEnabled(this),
                 hasSettings = true,
+            ),
+            NativePluginCardData(
+                id = NativePluginIds.ZYGO_PAY,
+                title = "UPI Pay",
+                description = "Pay a shop by photographing its UPI code with the glasses. Reads out who is being paid and how much, then waits for a yes — your own Solana wallet approves the transfer, so no key or card ever reaches this app.",
+                badge = "Accessibility",
+                enabled = ZygoPayPreferences.isEnabled(this),
+                hasSettings = false,
+                // Needs both an endpoint and a camera. Shown as unavailable rather than hidden, so
+                // "why can't I pay" has an answer on screen instead of nothing happening.
+                isAvailable = hasCamera && ZygoPayPreferences.isConfigured(this),
             ),
             NativePluginCardData(
                 id = NativePluginIds.MEETING_SPARK_NOTES,
@@ -352,6 +365,9 @@ class CommunityPluginsActivity : AppCompatActivity() {
             }
             NativePluginIds.CUE -> {
                 CuePlugin.setEnabled(this, enabled)
+            }
+            NativePluginIds.ZYGO_PAY -> {
+                ZygoPayPlugin.setEnabled(this, enabled)
             }
             "meeting_spark_notes" -> {
                 MeetingSparkNotesPreferences.setEnabled(this, enabled)
