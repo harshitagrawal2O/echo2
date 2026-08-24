@@ -30,6 +30,7 @@ import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidSettingsActivity
 import com.fersaiyan.cyanbridge.plugins.walkingaid.WalkingAidPreferences
 import com.fersaiyan.cyanbridge.plugins.cue.CuePlugin
 import com.fersaiyan.cyanbridge.plugins.zygopay.ZygoPayPlugin
+import com.fersaiyan.cyanbridge.plugins.zygopay.ZygoPaySettingsActivity
 import com.fersaiyan.cyanbridge.plugins.zygopay.ZygoPayPreferences
 import com.fersaiyan.cyanbridge.plugins.cue.CuePreferences
 import com.fersaiyan.cyanbridge.plugins.cue.CueSettingsActivity
@@ -141,7 +142,7 @@ class CommunityPluginsActivity : AppCompatActivity() {
                 description = "Pay a shop by photographing its UPI code with the glasses. Reads out who is being paid and how much, then waits for a yes — your own Solana wallet approves the transfer, so no key or card ever reaches this app.",
                 badge = "Accessibility",
                 enabled = ZygoPayPreferences.isEnabled(this),
-                hasSettings = false,
+                hasSettings = true,
                 // Needs both an endpoint and a camera. Shown as unavailable rather than hidden, so
                 // "why can't I pay" has an answer on screen instead of nothing happening.
                 isAvailable = hasCamera && ZygoPayPreferences.isConfigured(this),
@@ -239,6 +240,7 @@ class CommunityPluginsActivity : AppCompatActivity() {
                             NativePluginIds.AUTO_DIARY -> startActivity(Intent(this, AutoDiarySettingsActivity::class.java))
                             NativePluginIds.AUTO_AUDIO -> startActivity(Intent(this, AutoAudioSettingsActivity::class.java))
                             NativePluginIds.VISUAL_DIARY -> startActivity(Intent(this, VisualDiarySettingsActivity::class.java))
+                            NativePluginIds.ZYGO_PAY -> startActivity(Intent(this, ZygoPaySettingsActivity::class.java))
                         }
                     },
                     onToggleNativePlugin = ::toggleNativePlugin,

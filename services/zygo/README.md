@@ -66,8 +66,9 @@ Gradle properties, so nothing is committed — the same pattern the project alre
   -PZYGO_PROXY_TOKEN=the-same-token-as-the-service
 ```
 
-Changing either one currently means a rebuild — the plugin has no settings screen yet. The
-preference keys are read, so adding one is small, but as shipped this is build-time configuration.
+Changing either one after the fact does not need a rebuild: the plugin's settings screen
+(`ZygoPaySettingsActivity`) can override both at runtime, which is usually the more useful path on
+the day of a demo when the deployment URL is more likely to change than the APK.
 
 ## Verified, and not
 

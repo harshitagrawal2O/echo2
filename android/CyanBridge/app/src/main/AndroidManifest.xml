@@ -328,6 +328,11 @@
             android:label="UPI Payment" />
 
         <activity
+            android:name=".plugins.zygopay.ZygoPaySettingsActivity"
+            android:exported="false"
+            android:label="UPI Pay Settings" />
+
+        <activity
             android:name=".bridge.runtimes.evenhub.EvenHubRuntimeActivity"
             android:exported="false" />
 

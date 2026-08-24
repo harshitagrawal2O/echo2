@@ -2,6 +2,7 @@ package com.fersaiyan.cyanbridge.plugins.zygopay
 
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,26 +27,43 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.fersaiyan.cyanbridge.ai.feedback.SpeechRouter
 import com.fersaiyan.cyanbridge.ai.image.ImageThumbnailQuality
+import com.fersaiyan.cyanbridge.ai.image.PhoneCameraCapture
 import com.fersaiyan.cyanbridge.ai.live.GeminiLiveGlassesImageCapture
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 
 /**
  * The payment screen, and the only place a payment can be authorised.
  *
- * Designed for someone who cannot see it. Every state change is spoken and marked as a live region
- * so TalkBack reads it without the user hunting; the confirm control is a single large button whose
- * label states what it will do rather than saying "confirm"; and a live payment needs two presses,
- * because a mis-tap on a screen you cannot see should not be able to spend real money.
+ * Designed for someone who cannot see it. Every state change is spoken; the confirm control is a
+ * single large button whose label states what it will do rather than saying "confirm"; and a live
+ * payment needs two presses, because a mis-tap on a screen you cannot see should not be able to
+ * spend real money.
+ *
+ * Speech goes through [SpeechRouter] rather than an engine of this screen's own. `SpeechRouter` is
+ * a process singleton shared with the rest of the app, which is why this activity never starts or
+ * stops it — doing either would affect every other screen's speech, not just this one. Before this
+ * plugin had it, it ran its own `TextToSpeech` instance, which would have made a fourth
+ * uncoordinated voice in an app where a screen reader, the answer flow's TTS and this screen could
+ * already all be talking; that was always meant to collapse into `SpeechRouter` once the two
+ * existed in the same tree, and this is that collapse.
+ *
+ * The confirmation itself, and the final paid amount, go through [SpeechRouter.speakContent] rather
+ * than [SpeechRouter.speakState]: content is always self-voiced regardless of whether TalkBack is
+ * running, because the merchant name and the amount are the one thing a blind user cannot verify
+ * any other way, and they must be heard even if a screen reader is also active. Pure progress
+ * narration ("opening your wallet", "preparing the transfer") is state, and follows the same
+ * convention `SpeechRouter`'s own doc uses — it names "capture failed" as a state example — so it
+ * defers to TalkBack when one is running rather than talking over it.
  *
  * An activity rather than a service, deliberately. The wallet's approval screen arrives as an
  * activity result, and a person has to be present to agree — both of which make a background
@@ -54,15 +72,23 @@ import kotlinx.coroutines.launch
 class ZygoPayActivity : AppCompatActivity() {
 
     private lateinit var sender: ActivityResultSender
-    private lateinit var voice: ZygoVoice
     private lateinit var flow: ZygoPayFlow
+
+    // Bridges the callback-based permission launcher into the suspend call captureFromPhone()
+    // needs. Must be registered here, before STARTED, which is why it is a property rather than
+    // something created on demand inside a click handler.
+    private var pendingCameraPermission: CompletableDeferred<Boolean>? = null
+    private val cameraPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            pendingCameraPermission?.complete(granted)
+            pendingCameraPermission = null
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // Must be constructed during onCreate: it registers an activity-result launcher.
         sender = ActivityResultSender(this)
-        voice = ZygoVoice(this).also { it.start() }
         flow = ZygoPayFlow(
             client = ZygoPayPlugin.client(this),
             wallet = ZygoWallet(),
@@ -75,21 +101,16 @@ class ZygoPayActivity : AppCompatActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     PayScreen(
                         flow = flow,
-                        voice = voice,
                         initialCapture = captured,
                         onConfirm = { lifecycleScope.launch { onConfirmed() } },
                         onCaptureRequested = { lifecycleScope.launch { captureFromGlasses() } },
+                        onCapturePhoneRequested = { lifecycleScope.launch { captureFromPhone() } },
                         onCancel = { flow.cancel(); finish() },
                         onAmount = { minor -> lifecycleScope.launch { flow.setAmount(minor) } },
                     )
                 }
             }
         }
-    }
-
-    override fun onDestroy() {
-        voice.stop()
-        super.onDestroy()
     }
 
     private suspend fun onConfirmed() {
@@ -111,10 +132,55 @@ class ZygoPayActivity : AppCompatActivity() {
         val jpeg = runCatching {
             GeminiLiveGlassesImageCapture().capture(ImageThumbnailQuality.DETAILED)
         }.getOrElse { error ->
-            voice.say(error.message ?: "The glasses did not take a photo.")
+            SpeechRouter.get(this).speakState(error.message ?: "The glasses did not take a photo.")
             return
         }
         flow.onCapture(jpeg)
+    }
+
+    /**
+     * The fallback path: a merchant QR taken with the phone's own camera. Exists for the case
+     * hardware makes moot for the primary path -- glasses not paired, or the BLE thumbnail proving
+     * too small to decode a dense QR grid (see docs/upi-payments.md, item 1 of the unproven list).
+     * A full-resolution phone photo sidesteps that specific risk even if it is not the intended
+     * path once the glasses are confirmed working.
+     *
+     * Requests CAMERA explicitly before capturing. `PhoneCameraCapture.hasPermission` only checks;
+     * nothing upstream of this call requests it for a user who has never touched the Meta Ray-Ban
+     * flow, which is a real, separate gap -- see the phone-camera vision path's own review history.
+     * This call site owns its own request rather than assuming the permission is already granted,
+     * so it does not inherit that gap.
+     */
+    private suspend fun captureFromPhone() {
+        if (!PhoneCameraCapture.hasPermission(this) && !requestCameraPermission()) {
+            SpeechRouter.get(this).speakState("Camera permission is needed to use the phone camera.")
+            return
+        }
+
+        val result = PhoneCameraCapture(this).capture(this)
+        when (result) {
+            is PhoneCameraCapture.Result.Success -> {
+                // The bytes are what this flow needs; the file on disk is a photograph of someone's
+                // payment code and has no reason to outlive the read.
+                val jpeg = runCatching { result.file.readBytes() }.getOrNull()
+                result.file.delete()
+                if (jpeg == null) {
+                    SpeechRouter.get(this).speakState("I could not read that photo.")
+                    return
+                }
+                flow.onCapture(jpeg)
+            }
+
+            is PhoneCameraCapture.Result.Failure ->
+                SpeechRouter.get(this).speakState(result.reason)
+        }
+    }
+
+    private suspend fun requestCameraPermission(): Boolean {
+        val deferred = CompletableDeferred<Boolean>()
+        pendingCameraPermission = deferred
+        cameraPermissionRequest.launch(android.Manifest.permission.CAMERA)
+        return deferred.await()
     }
 
     companion object {
@@ -125,15 +191,15 @@ class ZygoPayActivity : AppCompatActivity() {
 @Composable
 private fun PayScreen(
     flow: ZygoPayFlow,
-    voice: ZygoVoice,
     initialCapture: ByteArray?,
     onConfirm: () -> Unit,
     onCaptureRequested: () -> Unit,
+    onCapturePhoneRequested: () -> Unit,
     onCancel: () -> Unit,
     onAmount: (Long) -> Unit,
 ) {
     val state by flow.state.collectAsState()
-    val view = LocalView.current
+    val context = LocalContext.current
     var confirmArmed by remember { mutableStateOf(false) }
     var amountText by remember { mutableStateOf("") }
 
@@ -142,11 +208,14 @@ private fun PayScreen(
     }
 
     // Everything the user needs to hear, said once per state change. The screen's visible text and
-    // the spoken text come from the same place so they cannot drift apart.
-    val spoken = spokenFor(state, flow)
-    LaunchedEffect(spoken) {
-        if (spoken.isNotBlank()) {
-            voice.say(spoken) { message -> view.announceForAccessibility(message) }
+    // the spoken text come from the same place so they cannot drift apart. Routed by SpeechRouter
+    // rather than announced here as well: doing both would be the same text heard twice whenever a
+    // screen reader is active, which is exactly the double-speech SpeechRouter exists to prevent.
+    val speech = speechFor(state, flow)
+    LaunchedEffect(speech) {
+        if (speech.text.isNotBlank()) {
+            val router = SpeechRouter.get(context)
+            if (speech.isContent) router.speakContent(speech.text) else router.speakState(speech.text)
         }
     }
 
@@ -161,14 +230,13 @@ private fun PayScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // No live-region semantics here: SpeechRouter already announces state changes to TalkBack
+        // when one is running, and marking this text as a live region as well would announce every
+        // change a second time through Compose's own mechanism.
         Text(
-            text = spoken,
+            text = speech.text,
             style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier
-                .fillMaxWidth()
-                // Announced on change without stealing focus, so a user moving through the screen
-                // still hears "waiting for your wallet" when it happens.
-                .semantics { liveRegion = LiveRegionMode.Polite },
+            modifier = Modifier.fillMaxWidth(),
         )
 
         when (val current = state) {
@@ -251,6 +319,16 @@ private fun PayScreen(
                     description = "Ask the glasses to photograph the payment code",
                     onClick = onCaptureRequested,
                 )
+                OutlinedButton(
+                    onClick = onCapturePhoneRequested,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 64.dp)
+                        .semantics {
+                            contentDescription =
+                                "Use the phone camera instead of the glasses to scan the code"
+                        },
+                ) { Text("Use phone camera instead") }
             }
 
             // Decoding, resolving, ordering, preparing, waiting on the wallet, settling: the user
@@ -285,22 +363,38 @@ private fun BigButton(
 /**
  * The one place a state becomes words. Shared by the screen and the speech so a user listening and
  * a user reading are told the same thing.
+ *
+ * [Speech.isContent] decides which [SpeechRouter] method carries it. The merchant name, the
+ * confirmation and the final paid amount are content: the one thing a user who cannot see the
+ * screen has no other way to check, so they must be heard even when a screen reader is also
+ * running. Everything else is the app narrating its own progress, which defers to TalkBack when one
+ * is active rather than speaking over it.
  */
-private fun spokenFor(state: ZygoPayFlow.State, flow: ZygoPayFlow): String = when (state) {
-    ZygoPayFlow.State.Idle -> "Ready to scan a payment code."
-    ZygoPayFlow.State.Decoding -> "Reading the code."
-    ZygoPayFlow.State.Resolving -> "Checking who this pays."
-    is ZygoPayFlow.State.NeedsAmount ->
-        "${state.merchant.merchantName}. The code does not say how much. How much should I pay?"
+private data class Speech(val text: String, val isContent: Boolean)
 
-    is ZygoPayFlow.State.AwaitingConfirmation -> flow.confirmationScript(state)
-    ZygoPayFlow.State.ConnectingWallet -> "Opening your wallet."
-    ZygoPayFlow.State.Ordering -> "Starting the payment."
-    ZygoPayFlow.State.Preparing -> "Preparing the transfer."
-    ZygoPayFlow.State.AwaitingWalletApproval -> "Approve it in your wallet."
-    is ZygoPayFlow.State.Settling -> "Sent. Waiting for the shop to be paid."
-    is ZygoPayFlow.State.Settled -> "Paid ${spokenRupees(state.amountMinor)}."
-    is ZygoPayFlow.State.Failed -> state.reason
+private fun speechFor(state: ZygoPayFlow.State, flow: ZygoPayFlow): Speech = when (state) {
+    ZygoPayFlow.State.Idle -> Speech("Ready to scan a payment code.", isContent = false)
+    ZygoPayFlow.State.Decoding -> Speech("Reading the code.", isContent = false)
+    ZygoPayFlow.State.Resolving -> Speech("Checking who this pays.", isContent = false)
+    is ZygoPayFlow.State.NeedsAmount -> Speech(
+        "${state.merchant.merchantName}. The code does not say how much. How much should I pay?",
+        isContent = true,
+    )
+
+    is ZygoPayFlow.State.AwaitingConfirmation ->
+        Speech(flow.confirmationScript(state), isContent = true)
+
+    ZygoPayFlow.State.ConnectingWallet -> Speech("Opening your wallet.", isContent = false)
+    ZygoPayFlow.State.Ordering -> Speech("Starting the payment.", isContent = false)
+    ZygoPayFlow.State.Preparing -> Speech("Preparing the transfer.", isContent = false)
+    ZygoPayFlow.State.AwaitingWalletApproval -> Speech("Approve it in your wallet.", isContent = false)
+    is ZygoPayFlow.State.Settling ->
+        Speech("Sent. Waiting for the shop to be paid.", isContent = false)
+
+    is ZygoPayFlow.State.Settled ->
+        Speech("Paid ${spokenRupees(state.amountMinor)}.", isContent = true)
+
+    is ZygoPayFlow.State.Failed -> Speech(state.reason, isContent = false)
 }
 
 /** "12.50" -> 1250 paise. Integer arithmetic only; this is money. */
